@@ -1,0 +1,17 @@
+[package]
+name = "limpwurt-chunk-roll"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4.42"
+dotenvy = "0.15"
+rusqlite = { version = "0.32", features = ["bundled"] }
+ego-tree = "0.10.0"
+eyre = "0.6.12"
+reqwest = { version = "0.13.1", features = ["rustls"] }
+scraper = "0.25.0"
+serenity = { version = "0.12", default-features = false, features = ["client", "gateway", "model", "rustls_backend"] }
+tokio = { version = "1.49.0", features = ["macros", "tokio-macros", "rt-multi-thread"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
