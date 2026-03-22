@@ -24,8 +24,7 @@ impl LimpwurtState {
             ((exp_left_after_pages as f32 / 9.5).ceil() as u32).saturating_sub(self.pure_essence);
         let clog_slots_needed = 299u32.saturating_sub(self.clog_slots);
 
-        let current_ess_rc_days = self.pure_essence as f32 / 17_700.0; // Can use 17.7k pure essence/day
-        let extra_ess_rc_days = extra_essence_needed as f32 / 17_700.0;
+        let current_ess_rc_days = self.pure_essence as f32 / 25_200.0; // Can use 25.2k pure essence/day
 
         let titans_days = non_banked_exp_left as f32 / 58_000.0;
 
@@ -167,7 +166,13 @@ pub fn predict_chunkroll_date(
     let pages_used =
         (rc_exp_gained / 50).min(pages_gained as u32 + limpwurt_february_25th_state.pages);
 
-    let rc_exp_from_essence = (rc_exp_gained - pages_used as u32 * 50) as f32 / 9.5;
+    let rc_exp_from_essence = (rc_exp_gained - pages_used as u32 * 50) as f32;
+    println!(
+        "Gained {}k rc exp, used {} pages, got {}k rc exp from essence",
+        rc_exp_gained / 1000,
+        pages_used,
+        rc_exp_from_essence / 1000.0
+    );
     let essence_used = rc_exp_from_essence as f32 / 9.5;
     let current_essence =
         limpwurt_february_25th_state.pure_essence + essence_gained as u32 - essence_used as u32;

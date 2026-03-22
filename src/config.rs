@@ -33,6 +33,7 @@ impl Config {
 pub struct PlayerConfig {
     pub player_name: String,
     pub player_alias: Option<String>,
+    #[serde(default)]
     pub player_explanation: String,
     pub show_exp_gain: bool,
     pub show_levelups: bool,

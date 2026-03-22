@@ -24,9 +24,8 @@ pub fn get_update_message(
                 metric.name,
                 player.player_explanation
             )))
-        } else if (player.show_exp_gain || player.metrics_whitelist.contains(&metric.name))
-            && exp_gained > 0
-        {
+        // Ignore whitelist for exp gain without levelups
+        } else if player.show_exp_gain && exp_gained > 0 {
             Ok(Some(format!(
                 "{} got {} {} exp{}!",
                 player.player_alias(),

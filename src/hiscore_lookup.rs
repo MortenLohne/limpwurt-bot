@@ -135,7 +135,11 @@ pub async fn fetch_metrics(username: &str) -> eyre::Result<Vec<Metric>> {
         };
     }
     if !errors.is_empty() {
-        eprintln!("Got {} errors while parsing hiscore metrics", errors.len());
+        eprintln!(
+            "Got {} errors while parsing hiscore metrics for {}",
+            errors.len(),
+            username
+        );
     }
     Ok(metrics)
 }

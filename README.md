@@ -11,7 +11,6 @@ Example `config.json`:
       {
         "playerName": "OneChunkUp",
         "playerAlias": "Limpwurt",
-        "playerExplanation": "",
         "showExpGain": false,
         "showLevelups": true,
         "showKcIncreases": true,
@@ -26,5 +25,9 @@ Example `config.json`:
     ]
   }
 }
-
 ```
+
+## To add bot to a server:
+Click link: https://discord.com/oauth2/authorize?client_id=1478063186497241273&permissions=2112&integration_type=0&scope=bot
+
+Click "Add to Server"
