@@ -126,14 +126,24 @@ pub fn predict_chunkroll_date(
     //     brutus_kills: 0,
     // };
 
-    let february_25th_state: Exp = Exp {
-        _ranged: 76_280_441,
-        _hitpoints: 53_787_837,
-        prayer: 4_316_151,
-        runecrafting: 9_211_312,
-        clog_slots: 295,
-        brutus_kills: 89,
-        titans_kills: 1984,
+    // let february_25th_state: Exp = Exp {
+    //     _ranged: 76_280_441,
+    //     _hitpoints: 53_787_837,
+    //     prayer: 4_316_151,
+    //     runecrafting: 9_211_312,
+    //     clog_slots: 295,
+    //     brutus_kills: 89,
+    //     titans_kills: 1984,
+    // };
+
+    let march_17th_state: Exp = Exp {
+        _ranged: 77_628_000,
+        _hitpoints: 57_008_000,
+        prayer: 4_488_000,
+        runecrafting: 9_926_000,
+        clog_slots: 298,
+        brutus_kills: 3759,
+        titans_kills: 2972,
     };
 
     // let limpwurt_january_state = LimpwurtState {
@@ -142,10 +152,17 @@ pub fn predict_chunkroll_date(
     //     pure_essence: 0,
     // };
 
-    let limpwurt_february_25th_state = LimpwurtState {
-        rc_exp: february_25th_state.runecrafting,
-        clog_slots: february_25th_state.clog_slots,
-        pure_essence: 238_000,
+    // let limpwurt_february_25th_state = LimpwurtState {
+    //     rc_exp: february_25th_state.runecrafting,
+    //     clog_slots: february_25th_state.clog_slots,
+    //     pure_essence: 238_000,
+    //     pages: 0,
+    // };
+
+    let limpwurt_march_17th_state = LimpwurtState {
+        rc_exp: march_17th_state.runecrafting,
+        clog_slots: march_17th_state.clog_slots,
+        pure_essence: 274_500,
         pages: 0,
     };
 
@@ -154,17 +171,17 @@ pub fn predict_chunkroll_date(
         db::last_scores(&conn_guard, "OneChunkUp")?
     };
     let current_exp = Exp::try_from(metrics)?;
-    let prayer_exp_gained = current_exp.prayer - february_25th_state.prayer;
-    let brutus_kills_gained = current_exp.brutus_kills - february_25th_state.brutus_kills;
+    let prayer_exp_gained = current_exp.prayer - march_17th_state.prayer;
+    let brutus_kills_gained = current_exp.brutus_kills - march_17th_state.brutus_kills;
     // Assume each wyvern gives 62.6 prayer exp, because he banks 15% of the bones
     let wyverns_killed = (prayer_exp_gained.saturating_sub(brutus_kills_gained * 10)) as f32 / 62.6;
 
     let essence_gained = wyverns_killed * 250.0 / 16.0;
-    let pages_gained = (current_exp.titans_kills - february_25th_state.titans_kills) as f32 * 14.5;
+    let pages_gained = (current_exp.titans_kills - march_17th_state.titans_kills) as f32 * 14.5;
 
-    let rc_exp_gained = current_exp.runecrafting - february_25th_state.runecrafting;
+    let rc_exp_gained = current_exp.runecrafting - march_17th_state.runecrafting;
     let pages_used =
-        (rc_exp_gained / 50).min(pages_gained as u32 + limpwurt_february_25th_state.pages);
+        (rc_exp_gained / 50).min(pages_gained as u32 + limpwurt_march_17th_state.pages);
 
     let rc_exp_from_essence = (rc_exp_gained - pages_used as u32 * 50) as f32;
     println!(
@@ -175,9 +192,9 @@ pub fn predict_chunkroll_date(
     );
     let essence_used = rc_exp_from_essence as f32 / 9.5;
     let current_essence =
-        limpwurt_february_25th_state.pure_essence + essence_gained as u32 - essence_used as u32;
+        limpwurt_march_17th_state.pure_essence + essence_gained as u32 - essence_used as u32;
 
-    let current_pages = limpwurt_february_25th_state.pages + pages_gained as u32 - pages_used;
+    let current_pages = limpwurt_march_17th_state.pages + pages_gained as u32 - pages_used;
 
     let limpwurt_state = LimpwurtState {
         rc_exp: current_exp.runecrafting,

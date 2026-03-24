@@ -43,8 +43,8 @@ impl Handler {
             } else if prediction.days_left < 2.0 {
                 "Limpwurt is close to 99 RC! Chunkroll is imminent!".to_string()
             } else {
-                let chunkroll_date = chrono::Utc::now().date_naive()
-                    + chrono::Days::new((prediction.days_left.ceil() as u64).saturating_sub(0));
+                let time_left = Duration::from_secs((prediction.days_left * 86_400.0) as u64);
+                let chunkroll_date = chrono::Utc::now() + time_left;
                 let clog_slot_string = if prediction.clog_slots_left == 0 {
                     "".to_string()
                 } else {
