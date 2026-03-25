@@ -52,10 +52,11 @@ impl Handler {
                 };
 
                 format!(
-                    "Limpwurt needs another {}k RC exp. He has {} desiccated pages and {}k pure essence banked{}. Chunkroll is estimated on **{}.**",
+                    "Limpwurt needs another {}k RC exp. He has {} desiccated pages, {}k pure essence and {} blank tiaras banked{}. Chunkroll is estimated on **{}.**",
                     prediction.rc_exp_left.div_ceil(1000),
                     prediction.current_pages,
                     prediction.current_pure_essence.div_ceil(1000),
+                    prediction.current_tiars,
                     clog_slot_string,
                     chunkroll_date.format("%d %B %Y"),
                 )

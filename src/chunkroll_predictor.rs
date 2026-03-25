@@ -12,26 +12,28 @@ struct LimpwurtState {
     clog_slots: u32,
     pure_essence: u32,
     pages: u32,
+    tiaras: u32,
 }
 
 impl LimpwurtState {
     fn days_left(&self) -> f32 {
         let rc_exp_left = LEVEL_99.saturating_sub(self.rc_exp);
         let exp_left_after_pages = rc_exp_left.saturating_sub(self.pages * 50);
-        let non_banked_exp_left =
-            exp_left_after_pages.saturating_sub((self.pure_essence as f32 * 9.5) as u32);
-        let extra_essence_needed: u32 =
-            ((exp_left_after_pages as f32 / 9.5).ceil() as u32).saturating_sub(self.pure_essence);
+        let non_banked_exp_left = exp_left_after_pages
+            .saturating_sub((self.pure_essence as f32 * 9.5) as u32)
+            .saturating_sub(self.tiaras * 25);
         let clog_slots_needed = 299u32.saturating_sub(self.clog_slots);
 
         let current_ess_rc_days = self.pure_essence as f32 / 25_200.0; // Can use 25.2k pure essence/day
+        let tiaras_days = self.tiaras as f32 / 5_600.0; // Can use 5.6k tiaras/day
 
         let titans_days = non_banked_exp_left as f32 / 58_000.0;
 
-        let days_left = current_ess_rc_days + titans_days + clog_slots_needed as f32 / 0.5;
+        let days_left =
+            current_ess_rc_days + tiaras_days + titans_days + clog_slots_needed as f32 / 0.5;
         println!(
-            "Current essence rc days: {}, titans days: {}",
-            current_ess_rc_days, titans_days
+            "Current essence rc days: {}, titans days: {}, tiaras days: {}",
+            current_ess_rc_days, titans_days, tiaras_days
         );
         #[allow(clippy::let_and_return)]
         days_left
@@ -44,6 +46,7 @@ struct Exp {
     _hitpoints: u32,
     prayer: u32,
     runecrafting: u32,
+    crafting: u32,
     clog_slots: u32,
     brutus_kills: u32,
     titans_kills: u32,
@@ -78,6 +81,12 @@ impl TryFrom<Vec<Metric>> for Exp {
                 .context("Runecrafting metric not found")?
                 .exp
                 .context("No runecrafting exp found")?,
+            crafting: metrics
+                .iter()
+                .find(|m| m.name == "Crafting")
+                .context("Crafting metric not found")?
+                .exp
+                .context("No crafting exp found")?,
             clog_slots: metrics
                 .iter()
                 .find(|m| m.name == "Collections Logged")
@@ -102,6 +111,7 @@ pub struct PredictionResult {
     pub current_pure_essence: u32,
     pub current_pages: u32,
     pub total_pure_essence_needed: u32,
+    pub current_tiars: u32,
     pub clog_slots_left: u32,
     pub days_left: f32,
 }
@@ -131,6 +141,7 @@ pub fn predict_chunkroll_date(
     //     _hitpoints: 53_787_837,
     //     prayer: 4_316_151,
     //     runecrafting: 9_211_312,
+    //     crafting: 7_942_745,
     //     clog_slots: 295,
     //     brutus_kills: 89,
     //     titans_kills: 1984,
@@ -141,6 +152,7 @@ pub fn predict_chunkroll_date(
         _hitpoints: 57_008_000,
         prayer: 4_488_000,
         runecrafting: 9_926_000,
+        crafting: 7_942_745,
         clog_slots: 298,
         brutus_kills: 3759,
         titans_kills: 2972,
@@ -164,6 +176,7 @@ pub fn predict_chunkroll_date(
         clog_slots: march_17th_state.clog_slots,
         pure_essence: 274_500,
         pages: 0,
+        tiaras: 0,
     };
 
     let metrics = {
@@ -196,11 +209,16 @@ pub fn predict_chunkroll_date(
 
     let current_pages = limpwurt_march_17th_state.pages + pages_gained as u32 - pages_used;
 
+    let tiaras_made =
+        ((current_exp.crafting - march_17th_state.crafting) as f32 / 52.5).round() as u32;
+    let current_tiars = limpwurt_march_17th_state.tiaras + tiaras_made;
+
     let limpwurt_state = LimpwurtState {
         rc_exp: current_exp.runecrafting,
         clog_slots: current_exp.clog_slots,
         pure_essence: current_essence,
         pages: current_pages,
+        tiaras: current_tiars,
     };
 
     let days_left = limpwurt_state.days_left();
@@ -209,6 +227,7 @@ pub fn predict_chunkroll_date(
         rc_exp_left: LEVEL_99.saturating_sub(current_exp.runecrafting),
         current_pure_essence: current_essence,
         current_pages: current_pages as u32,
+        current_tiars: current_tiars,
         total_pure_essence_needed: (LEVEL_99.saturating_sub(current_exp.runecrafting) as f32 / 9.5)
             as u32,
         clog_slots_left: 299u32.saturating_sub(current_exp.clog_slots),
