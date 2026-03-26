@@ -196,22 +196,37 @@ pub fn predict_chunkroll_date(
     let pages_used =
         (rc_exp_gained / 50).min(pages_gained as u32 + limpwurt_march_17th_state.pages);
 
-    let rc_exp_from_essence = (rc_exp_gained - pages_used as u32 * 50) as f32;
+    let rc_exp_from_essence_or_tiaras = (rc_exp_gained - pages_used as u32 * 50) as f32;
+    let rc_exp_from_essence = rc_exp_from_essence_or_tiaras
+        .min((limpwurt_march_17th_state.pure_essence + essence_gained as u32) as f32 * 9.5);
+    let rc_exp_from_tiaras = rc_exp_from_essence_or_tiaras - rc_exp_from_essence;
+
     println!(
-        "Gained {}k rc exp, used {} pages, got {}k rc exp from essence",
+        "Gained {}k rc exp, used {} pages, got {:.1}k rc exp from essence or tiaras, {:.1}k from essence, {:.1}k from tiaras",
         rc_exp_gained / 1000,
         pages_used,
-        rc_exp_from_essence / 1000.0
+        rc_exp_from_essence_or_tiaras / 1000.0,
+        rc_exp_from_essence / 1000.0,
+        rc_exp_from_tiaras / 1000.0,
     );
-    let essence_used = rc_exp_from_essence as f32 / 9.5;
-    let current_essence =
-        limpwurt_march_17th_state.pure_essence + essence_gained as u32 - essence_used as u32;
+    let essence_used = (rc_exp_from_essence as f32 / 9.5) as u32;
+    let current_essence = (limpwurt_march_17th_state.pure_essence + essence_gained as u32)
+        .checked_sub(essence_used)
+        .unwrap_or_else(|| {
+            println!(
+                "Warning: Pure essence int overflow. Has essence: {}, essence_used: {}",
+                (limpwurt_march_17th_state.pure_essence + essence_gained as u32),
+                essence_used
+            );
+            0
+        });
 
     let current_pages = limpwurt_march_17th_state.pages + pages_gained as u32 - pages_used;
 
     let tiaras_made =
         ((current_exp.crafting - march_17th_state.crafting) as f32 / 52.5).round() as u32;
-    let current_tiars = limpwurt_march_17th_state.tiaras + tiaras_made;
+    let tiaras_used = (rc_exp_from_tiaras as f32 / 25.0).round() as u32;
+    let current_tiars = limpwurt_march_17th_state.tiaras + tiaras_made - tiaras_used;
 
     let limpwurt_state = LimpwurtState {
         rc_exp: current_exp.runecrafting,
