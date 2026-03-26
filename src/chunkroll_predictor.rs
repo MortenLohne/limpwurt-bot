@@ -147,12 +147,24 @@ pub fn predict_chunkroll_date(
     //     titans_kills: 1984,
     // };
 
-    let march_17th_state: Exp = Exp {
+    // let march_17th_state: Exp = Exp {
+    //     _ranged: 77_628_000,
+    //     _hitpoints: 57_008_000,
+    //     prayer: 4_488_000,
+    //     runecrafting: 9_926_000,
+    //     crafting: 7_942_745,
+    //     clog_slots: 298,
+    //     brutus_kills: 3759,
+    //     titans_kills: 2972,
+    // };
+
+    // State after he used all his essence
+    let march_26th_state: Exp = Exp {
         _ranged: 77_628_000,
-        _hitpoints: 57_008_000,
-        prayer: 4_488_000,
-        runecrafting: 9_926_000,
-        crafting: 7_942_745,
+        _hitpoints: 57_093_000,
+        prayer: 4_510_874,
+        runecrafting: 12_592_771,
+        crafting: 7_973_458,
         clog_slots: 298,
         brutus_kills: 3759,
         titans_kills: 2972,
@@ -171,12 +183,20 @@ pub fn predict_chunkroll_date(
     //     pages: 0,
     // };
 
-    let limpwurt_march_17th_state = LimpwurtState {
-        rc_exp: march_17th_state.runecrafting,
-        clog_slots: march_17th_state.clog_slots,
-        pure_essence: 274_500,
+    // let limpwurt_march_17th_state = LimpwurtState {
+    //     rc_exp: march_17th_state.runecrafting,
+    //     clog_slots: march_17th_state.clog_slots,
+    //     pure_essence: 274_500,
+    //     pages: 0,
+    //     tiaras: 0,
+    // };
+
+    let limpwurt_march_26th_state = LimpwurtState {
+        rc_exp: march_26th_state.runecrafting,
+        clog_slots: march_26th_state.clog_slots,
+        pure_essence: 0,
         pages: 0,
-        tiaras: 0,
+        tiaras: 418,
     };
 
     let metrics = {
@@ -184,21 +204,21 @@ pub fn predict_chunkroll_date(
         db::last_scores(&conn_guard, "OneChunkUp")?
     };
     let current_exp = Exp::try_from(metrics)?;
-    let prayer_exp_gained = current_exp.prayer - march_17th_state.prayer;
-    let brutus_kills_gained = current_exp.brutus_kills - march_17th_state.brutus_kills;
+    let prayer_exp_gained = current_exp.prayer - march_26th_state.prayer;
+    let brutus_kills_gained = current_exp.brutus_kills - march_26th_state.brutus_kills;
     // Assume each wyvern gives 62.6 prayer exp, because he banks 15% of the bones
     let wyverns_killed = (prayer_exp_gained.saturating_sub(brutus_kills_gained * 10)) as f32 / 62.6;
 
     let essence_gained = wyverns_killed * 250.0 / 16.0;
-    let pages_gained = (current_exp.titans_kills - march_17th_state.titans_kills) as f32 * 14.5;
+    let pages_gained = (current_exp.titans_kills - march_26th_state.titans_kills) as f32 * 14.5;
 
-    let rc_exp_gained = current_exp.runecrafting - march_17th_state.runecrafting;
+    let rc_exp_gained = current_exp.runecrafting - march_26th_state.runecrafting;
     let pages_used =
-        (rc_exp_gained / 50).min(pages_gained as u32 + limpwurt_march_17th_state.pages);
+        (rc_exp_gained / 50).min(pages_gained as u32 + limpwurt_march_26th_state.pages);
 
     let rc_exp_from_essence_or_tiaras = (rc_exp_gained - pages_used as u32 * 50) as f32;
     let rc_exp_from_essence = rc_exp_from_essence_or_tiaras
-        .min((limpwurt_march_17th_state.pure_essence + essence_gained as u32) as f32 * 9.5);
+        .min((limpwurt_march_26th_state.pure_essence + essence_gained as u32) as f32 * 9.5);
     let rc_exp_from_tiaras = rc_exp_from_essence_or_tiaras - rc_exp_from_essence;
 
     println!(
@@ -210,23 +230,23 @@ pub fn predict_chunkroll_date(
         rc_exp_from_tiaras / 1000.0,
     );
     let essence_used = (rc_exp_from_essence as f32 / 9.5) as u32;
-    let current_essence = (limpwurt_march_17th_state.pure_essence + essence_gained as u32)
+    let current_essence = (limpwurt_march_26th_state.pure_essence + essence_gained as u32)
         .checked_sub(essence_used)
         .unwrap_or_else(|| {
             println!(
                 "Warning: Pure essence int overflow. Has essence: {}, essence_used: {}",
-                (limpwurt_march_17th_state.pure_essence + essence_gained as u32),
+                (limpwurt_march_26th_state.pure_essence + essence_gained as u32),
                 essence_used
             );
             0
         });
 
-    let current_pages = limpwurt_march_17th_state.pages + pages_gained as u32 - pages_used;
+    let current_pages = limpwurt_march_26th_state.pages + pages_gained as u32 - pages_used;
 
     let tiaras_made =
-        ((current_exp.crafting - march_17th_state.crafting) as f32 / 52.5).round() as u32;
+        ((current_exp.crafting - march_26th_state.crafting) as f32 / 52.5).round() as u32;
     let tiaras_used = (rc_exp_from_tiaras as f32 / 25.0).round() as u32;
-    let current_tiars = limpwurt_march_17th_state.tiaras + tiaras_made - tiaras_used;
+    let current_tiars = limpwurt_march_26th_state.tiaras + tiaras_made - tiaras_used;
 
     let limpwurt_state = LimpwurtState {
         rc_exp: current_exp.runecrafting,
