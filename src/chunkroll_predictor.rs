@@ -161,10 +161,10 @@ pub fn predict_chunkroll_date(
     // State after he used all his essence
     let march_26th_state: Exp = Exp {
         _ranged: 77_628_000,
-        _hitpoints: 57_093_000,
+        _hitpoints: 57_100_430,
         prayer: 4_510_874,
-        runecrafting: 12_592_771,
-        crafting: 7_973_458,
+        runecrafting: 12_627_993,
+        crafting: 8_017_138,
         clog_slots: 298,
         brutus_kills: 3759,
         titans_kills: 2972,
@@ -196,7 +196,7 @@ pub fn predict_chunkroll_date(
         clog_slots: march_26th_state.clog_slots,
         pure_essence: 0,
         pages: 0,
-        tiaras: 418,
+        tiaras: 0,
     };
 
     let metrics = {
@@ -246,7 +246,16 @@ pub fn predict_chunkroll_date(
     let tiaras_made =
         ((current_exp.crafting - march_26th_state.crafting) as f32 / 52.5).round() as u32;
     let tiaras_used = (rc_exp_from_tiaras as f32 / 25.0).round() as u32;
-    let current_tiars = limpwurt_march_26th_state.tiaras + tiaras_made - tiaras_used;
+    let current_tiars = (limpwurt_march_26th_state.tiaras + tiaras_made)
+        .checked_sub(tiaras_used)
+        .unwrap_or_else(|| {
+            println!(
+                "Warning: Tiaras int overflow. Has tiaras: {}, tiaras_used: {}",
+                limpwurt_march_26th_state.tiaras + tiaras_made,
+                tiaras_used
+            );
+            0
+        });
 
     let limpwurt_state = LimpwurtState {
         rc_exp: current_exp.runecrafting,
