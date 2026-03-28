@@ -40,7 +40,7 @@ impl Handler {
 
             let message = if prediction.rc_exp_left == 0 {
                 "Limpwurt is already 99 RC! The world is his oyster!".to_string()
-            } else if prediction.days_left < 2.0 {
+            } else if prediction.days_left < 1.0 {
                 "Limpwurt is close to 99 RC! Chunkroll is imminent!".to_string()
             } else {
                 let time_left = Duration::from_secs((prediction.days_left * 86_400.0) as u64);
@@ -48,15 +48,30 @@ impl Handler {
                 let clog_slot_string = if prediction.clog_slots_left == 0 {
                     "".to_string()
                 } else {
-                    ", and still needs the earth warrior champion's scroll".to_string()
+                    ", and (probably) still needs the earth warrior champion's scroll".to_string()
                 };
 
+                let pure_essence_tiaras_string =
+                    if prediction.current_pure_essence == 0 && prediction.current_tiars == 0 {
+                        "".to_string()
+                    } else {
+                        format!(
+                            ", {}k pure essence and {} blank tiaras",
+                            prediction.current_pure_essence.div_ceil(1000),
+                            prediction.current_tiars
+                        )
+                    };
+
+                let banked_exp = prediction.current_pages * 50
+                    + (prediction.current_pure_essence as f32 * 9.5) as u32
+                    + prediction.current_tiars * 25;
+
                 format!(
-                    "Limpwurt needs another {}k RC exp. He has {} desiccated pages, {}k pure essence and {} blank tiaras banked{}. Chunkroll is estimated on **{}.**",
+                    "Limpwurt needs another {}k RC exp. He has {} desiccated pages{} banked (for {}k banked exp){}. Chunkroll is estimated on **{}.**",
                     prediction.rc_exp_left.div_ceil(1000),
                     prediction.current_pages,
-                    prediction.current_pure_essence.div_ceil(1000),
-                    prediction.current_tiars,
+                    pure_essence_tiaras_string,
+                    banked_exp / 1000,
                     clog_slot_string,
                     chunkroll_date.format("%d %B %Y"),
                 )
