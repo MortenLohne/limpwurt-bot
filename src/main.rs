@@ -40,15 +40,13 @@ impl Handler {
 
             let message = if prediction.rc_exp_left == 0 {
                 "Limpwurt is already 99 RC! The world is his oyster!".to_string()
-            } else if prediction.days_left < 1.0 {
-                "Limpwurt is close to 99 RC! Chunkroll is imminent!".to_string()
             } else {
                 let time_left = Duration::from_secs((prediction.days_left * 86_400.0) as u64);
                 let chunkroll_date = chrono::Utc::now() + time_left;
                 let clog_slot_string = if prediction.clog_slots_left == 0 {
                     "".to_string()
                 } else {
-                    ", and (probably) still needs the earth warrior champion's scroll".to_string()
+                    ", and still needs the earth warrior champion's scroll".to_string()
                 };
 
                 let pure_essence_tiaras_string =
@@ -67,13 +65,14 @@ impl Handler {
                     + prediction.current_tiars * 25;
 
                 format!(
-                    "Limpwurt needs another {}k RC exp. He has {} desiccated pages{} banked (for {}k banked exp){}. Chunkroll is estimated on **{}.**",
+                    "Limpwurt needs another {}k RC exp. He has {} desiccated pages{} banked (for {}k banked exp){}. Chunkroll is estimated on **{}**, or **{}** if he doesn't have the earth warrior champion's scroll yet.",
                     prediction.rc_exp_left.div_ceil(1000),
                     prediction.current_pages,
                     pure_essence_tiaras_string,
                     banked_exp / 1000,
                     clog_slot_string,
                     chunkroll_date.format("%d %B %Y"),
+                    (chunkroll_date + chrono::Duration::days(2)).format("%d %B %Y"),
                 )
             };
 

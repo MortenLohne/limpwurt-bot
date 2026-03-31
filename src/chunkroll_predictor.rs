@@ -22,7 +22,7 @@ impl LimpwurtState {
         let non_banked_exp_left = exp_left_after_pages
             .saturating_sub((self.pure_essence as f32 * 9.5) as u32)
             .saturating_sub(self.tiaras * 25);
-        let clog_slots_needed = 300u32.saturating_sub(self.clog_slots);
+        let clog_slots_needed = 299u32.saturating_sub(self.clog_slots);
 
         let current_ess_rc_days = self.pure_essence as f32 / 25_200.0; // Can use 25.2k pure essence/day
         let tiaras_days = self.tiaras as f32 / 5_600.0; // Can use 5.6k tiaras/day
@@ -274,7 +274,7 @@ pub fn predict_chunkroll_date(
         current_tiars: current_tiars,
         total_pure_essence_needed: (LEVEL_99.saturating_sub(current_exp.runecrafting) as f32 / 9.5)
             as u32,
-        clog_slots_left: 300u32.saturating_sub(current_exp.clog_slots),
+        clog_slots_left: 299u32.saturating_sub(current_exp.clog_slots),
         days_left,
     })
 }
