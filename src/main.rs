@@ -34,50 +34,7 @@ impl EventHandler for Handler {
 }
 
 impl Handler {
-    async fn handle_message(&self, ctx: Context, msg: Message) -> eyre::Result<()> {
-        if msg.content.starts_with("!when") {
-            let prediction = chunkroll_predictor::predict_chunkroll_date(self.db_conn.clone())?;
-
-            let message = if prediction.rc_exp_left == 0 {
-                "Limpwurt is already 99 RC! The world is his oyster!".to_string()
-            } else {
-                let time_left = Duration::from_secs((prediction.days_left * 86_400.0) as u64);
-                let chunkroll_date = chrono::Utc::now() + time_left;
-                let clog_slot_string = if prediction.clog_slots_left == 0 {
-                    "".to_string()
-                } else {
-                    ", and still needs the earth warrior champion's scroll".to_string()
-                };
-
-                let pure_essence_tiaras_string =
-                    if prediction.current_pure_essence == 0 && prediction.current_tiars == 0 {
-                        "".to_string()
-                    } else {
-                        format!(
-                            ", {}k pure essence and {} blank tiaras",
-                            prediction.current_pure_essence.div_ceil(1000),
-                            prediction.current_tiars
-                        )
-                    };
-
-                let banked_exp = prediction.current_pages * 50
-                    + (prediction.current_pure_essence as f32 * 9.5) as u32
-                    + prediction.current_tiars * 25;
-
-                format!(
-                    "Limpwurt needs another {}k RC exp. He has {} desiccated pages{} banked (for {}k banked exp){}. Chunkroll is estimated on **{}**, or **{}** if he doesn't have the earth warrior champion's scroll yet.",
-                    prediction.rc_exp_left.div_ceil(1000),
-                    prediction.current_pages,
-                    pure_essence_tiaras_string,
-                    banked_exp / 1000,
-                    clog_slot_string,
-                    chunkroll_date.format("%d %B %Y"),
-                    (chunkroll_date + chrono::Duration::days(2)).format("%d %B %Y"),
-                )
-            };
-
-            msg.reply(&ctx.http, message).await?;
-        }
+    async fn handle_message(&self, _ctx: Context, _msg: Message) -> eyre::Result<()> {
         Ok(())
     }
 }
