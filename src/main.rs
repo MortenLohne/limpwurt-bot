@@ -16,6 +16,7 @@ use serenity::model::id::ChannelId;
 use serenity::prelude::*;
 
 use crate::config::{Config, PlayerConfig, PlayerToTrack};
+use crate::update_post::metric_updates;
 
 const DB_PATH: &str = "hiscores.db";
 const POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
@@ -70,6 +71,19 @@ async fn poll_once(
         else {
             continue;
         };
+
+        let metric_updates = metric_updates(&metrics, &prev_metrics);
+
+        if metric_updates.triggers_post(player_config) {
+            println!("Triggered post for {}", player.name);
+            let message = metric_updates.get_full_update_message(player_config);
+            println!("{}", message);
+        } else if !metric_updates.is_empty() {
+            println!("Got update for {}, but no post triggered", player.name);
+            let message = metric_updates.get_full_update_message(player_config);
+            println!("{}", message);
+        }
+
         for metric in &metrics {
             let Some(prev_metric) = prev_metrics.get(&metric.name) else {
                 continue;
