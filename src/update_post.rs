@@ -83,7 +83,7 @@ impl KcUpdate {
         let delta = self.end_kc - self.start_kc;
         if self.name == "Collections Logged" {
             if delta == 1 {
-                format!("a new collection log slot",)
+                "a new collection log slot".to_string()
             } else {
                 format!("{} new collection log slots", delta)
             }

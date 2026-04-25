@@ -1,4 +1,3 @@
-mod chunkroll_predictor;
 mod config;
 mod db;
 mod hiscore_lookup;
