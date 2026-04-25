@@ -6,7 +6,7 @@ use serenity::all::ChannelId;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
-    pub players_to_track: Vec<String>,
+    pub players_to_track: Vec<PlayerToTrack>,
     pub channels: HashMap<ChannelId, Vec<PlayerConfig>>,
 }
 
@@ -15,7 +15,11 @@ impl Config {
         // Check that players mentioned in a channel config are also tracked
         for (channel_id, channel) in self.channels.iter() {
             for player_config in channel {
-                if !self.players_to_track.contains(&player_config.player_name) {
+                if !self
+                    .players_to_track
+                    .iter()
+                    .any(|p| p.name == player_config.player_name)
+                {
                     eyre::bail!(
                         "Player {} is configured for channel id {}, but is not tracked on hiscores",
                         player_config.player_name,
@@ -25,6 +29,32 @@ impl Config {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerToTrack {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub account_type: AccountType,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountType {
+    Main,
+    Ironman,
+    UltimateIronman,
+}
+
+impl AccountType {
+    pub fn highscore_url(&self) -> &str {
+        match self {
+            AccountType::Main => "hiscore_oldschool",
+            AccountType::Ironman => "hiscore_oldschool_ironman",
+            AccountType::UltimateIronman => "hiscore_oldschool_ultimate",
+        }
     }
 }
 
@@ -46,4 +76,31 @@ impl PlayerConfig {
     pub fn player_alias(&self) -> &str {
         self.player_alias.as_ref().unwrap_or(&self.player_name)
     }
+}
+
+#[test]
+fn validate_test_config() {
+    let config_str = r#"{
+      "playersToTrack": [{ "name": "OneChunkUp", "type": "main" }],
+      "channels": {
+        "812770607527231488": [
+          {
+            "playerName": "OneChunkUp",
+            "playerAlias": "Limpwurt",
+            "showExpGain": false,
+            "showLevelups": true,
+            "showKcIncreases": true,
+            "metricsWhitelist": [],
+            "metricsBlacklist": [
+              "Overall",
+              "Clue Scrolls (all)",
+              "Brutus",
+              "The Royal Titans"
+            ]
+          }
+        ]
+      }
+    }"#;
+    let config: Config = serde_json::from_str(config_str).unwrap();
+    assert!(config.validate().is_ok());
 }

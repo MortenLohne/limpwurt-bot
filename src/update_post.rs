@@ -38,13 +38,31 @@ pub fn get_update_message(
         }
     } else {
         // This is a kc metric
+        let delta = metric
+            .score
+            .checked_sub(prev_metric.score)
+            .with_context(|| {
+                format!(
+                    "{} kc decreased {} -> {}",
+                    metric.name, prev_metric.score, metric.score
+                )
+            })?;
         if player.show_kc_increases || player.metrics_whitelist.contains(&metric.name) {
             if metric.name == "Collections Logged" {
-                Ok(Some(format!(
-                    "{} got a new collection log slot{}! What could it be?",
-                    player.player_alias(),
-                    player.player_explanation
-                )))
+                if delta == 1 {
+                    Ok(Some(format!(
+                        "{} got a new collection log slot{}! What could it be?",
+                        player.player_alias(),
+                        player.player_explanation
+                    )))
+                } else {
+                    Ok(Some(format!(
+                        "{} got {} new collection log slots{}! What could they be?",
+                        player.player_alias(),
+                        delta,
+                        player.player_explanation
+                    )))
+                }
             } else {
                 Ok(Some(format!(
                     "{} increased **{}** kc{}: {} -> {}",

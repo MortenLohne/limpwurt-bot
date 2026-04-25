@@ -2,6 +2,8 @@ use std::fmt;
 
 use eyre::ContextCompat as _;
 
+use crate::config::PlayerToTrack;
+
 /// Get the contents of all text elements below a node, as a flattened vector
 fn texts_below_node(node: &ego_tree::NodeRef<scraper::Node>) -> Vec<String> {
     let mut texts = vec![];
@@ -89,10 +91,11 @@ impl Metric {
 }
 
 /// Fetches the metrics for a given username from the hiscores.
-pub async fn fetch_metrics(username: &str) -> eyre::Result<Vec<Metric>> {
+pub async fn fetch_metrics(player: &PlayerToTrack) -> eyre::Result<Vec<Metric>> {
     let html = reqwest::get(format!(
-        "https://secure.runescape.com/m=hiscore_oldschool_ironman/hiscorepersonal?user1={}",
-        username
+        "https://secure.runescape.com/m={}/hiscorepersonal?user1={}",
+        player.account_type.highscore_url(),
+        player.name
     ))
     .await?
     .error_for_status()?
@@ -138,7 +141,7 @@ pub async fn fetch_metrics(username: &str) -> eyre::Result<Vec<Metric>> {
         eprintln!(
             "Got {} errors while parsing hiscore metrics for {}",
             errors.len(),
-            username
+            player.name
         );
     }
     Ok(metrics)

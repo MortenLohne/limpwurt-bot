@@ -15,7 +15,7 @@ use serenity::model::gateway::GatewayIntents;
 use serenity::model::id::ChannelId;
 use serenity::prelude::*;
 
-use crate::config::{Config, PlayerConfig};
+use crate::config::{Config, PlayerConfig, PlayerToTrack};
 
 const DB_PATH: &str = "hiscores.db";
 const POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
@@ -40,18 +40,18 @@ impl Handler {
 }
 
 async fn poll_once(
-    player: &str,
+    player: &PlayerToTrack,
     conn: Arc<Mutex<rusqlite::Connection>>,
     http: Arc<serenity::http::Http>,
     channels: &HashMap<ChannelId, Vec<PlayerConfig>>,
 ) -> eyre::Result<()> {
     // Get previous metrics
-    let player_owned = player.to_string();
+    let player_name = player.name.clone();
     let conn_clone = Arc::clone(&conn);
     let prev_metrics: HashMap<String, hiscore_lookup::Metric> =
         tokio::task::spawn_blocking(move || {
             let guard = conn_clone.lock().unwrap();
-            db::last_scores(&guard, &player_owned)
+            db::last_scores(&guard, &player_name)
         })
         .await??
         .into_iter()
@@ -66,7 +66,7 @@ async fn poll_once(
         // The tracked player may or may not be subscribed to by this channel
         let Some(player_config) = players
             .iter()
-            .find(|player_config| player_config.player_name == player)
+            .find(|player_config| player_config.player_name == player.name)
         else {
             continue;
         };
@@ -95,11 +95,11 @@ async fn poll_once(
 
     // Insert snapshot
     let fetched_at = Utc::now().to_rfc3339();
-    let player_cloned = player.to_string();
+    let player_name = player.name.clone();
     let conn_clone = Arc::clone(&conn);
     tokio::task::spawn_blocking(move || {
         let guard = conn_clone.lock().unwrap();
-        db::insert_snapshot(&guard, &player_cloned, &fetched_at, &metrics)
+        db::insert_snapshot(&guard, &player_name, &fetched_at, &metrics)
     })
     .await??;
 
@@ -107,14 +107,14 @@ async fn poll_once(
 }
 
 async fn player_loop(
-    player: String,
+    player: PlayerToTrack,
     conn: Arc<Mutex<rusqlite::Connection>>,
     http: Arc<serenity::http::Http>,
     channels: Arc<HashMap<ChannelId, Vec<PlayerConfig>>>,
 ) {
     loop {
         if let Err(e) = poll_once(&player, Arc::clone(&conn), Arc::clone(&http), &channels).await {
-            eprintln!("[{}] Error polling: {:#}", player, e);
+            eprintln!("[{}] Error polling: {:#}", player.name, e);
         }
         tokio::time::sleep(POLL_INTERVAL).await;
     }
