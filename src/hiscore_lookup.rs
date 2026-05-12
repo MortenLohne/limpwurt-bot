@@ -65,7 +65,14 @@ impl Metric {
                     .filter(|ch| *ch != ',')
                     .collect::<String>()
                     .parse()
-                    .map_err(|err| eyre::eyre!("Error parsing rank '{}': {}", texts[1], err))?,
+                    .map_err(|err| {
+                        eyre::eyre!(
+                            "Error parsing rank '{}' in '{}': {}",
+                            texts[1],
+                            texts.join(", "),
+                            err
+                        )
+                    })?,
             )
         };
         let level_score = texts[2]
@@ -144,6 +151,16 @@ pub async fn fetch_metrics(player: &PlayerToTrack) -> eyre::Result<Vec<Metric>> 
     for great_great_aunts in great_great_grandparent.children() {
         let texts_below = texts_below_node(&great_great_aunts);
         if texts_below.is_empty() {
+            continue;
+        }
+        if let &[ref text] = texts_below.as_slice()
+            && text.starts_with("Personal scores for")
+        {
+            continue;
+        }
+        if texts_below == ["Skill", "Rank", "Level", "XP"]
+            || texts_below == ["Minigame", "Rank", "Score"]
+        {
             continue;
         }
         let metric_result = Metric::from_texts(&texts_below);
