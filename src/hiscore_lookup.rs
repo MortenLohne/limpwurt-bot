@@ -50,8 +50,9 @@ impl Metric {
     fn from_texts(texts: &[String]) -> eyre::Result<Metric> {
         if texts.len() < 3 {
             eyre::bail!(
-                "Only {} words of text, not enough texts to parse a metric",
-                texts.len()
+                "Only {} words of text in metric text {}, not enough texts to parse a metric",
+                texts.len(),
+                texts.join(", ")
             );
         }
         let name = texts[0].clone();
@@ -63,7 +64,8 @@ impl Metric {
                     .chars()
                     .filter(|ch| *ch != ',')
                     .collect::<String>()
-                    .parse()?,
+                    .parse()
+                    .map_err(|err| eyre::eyre!("Error parsing rank '{}': {}", texts[1], err))?,
             )
         };
         let level_score = texts[2]
@@ -139,10 +141,12 @@ pub async fn fetch_metrics(player: &PlayerToTrack) -> eyre::Result<Vec<Metric>> 
     }
     if !errors.is_empty() {
         eprintln!(
-            "Got {} errors while parsing hiscore metrics for {}",
+            "Got {} errors while parsing {} hiscore metrics for {}",
             errors.len(),
+            metrics.len(),
             player.name
         );
+        eprintln!("First error: {:?}", errors[0]);
     }
     Ok(metrics)
 }
