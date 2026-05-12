@@ -115,15 +115,28 @@ pub async fn fetch_metrics(player: &PlayerToTrack) -> eyre::Result<Vec<Metric>> 
         eyre::bail!("Couldn't find overall html node");
     };
 
-    let great_great_grandparent = overall_node
-        .parent()
-        .context("Couldn't find node parent")?
-        .parent()
-        .context("Couldn't find node parent")?
-        .parent()
-        .context("Couldn't find node parent")?
-        .parent()
-        .context("Couldn't find node parent")?;
+    let parent = overall_node.parent().context("Couldn't find node parent")?;
+
+    // The "overall" node is nested one level deeper if it's a link, i.e. if the player is ranked in overall
+    let great_great_grandparent = if parent
+        .value()
+        .as_element()
+        .is_some_and(|element| element.attrs().any(|(k, _)| k == "href"))
+    {
+        parent
+            .parent()
+            .context("Couldn't find node parent")?
+            .parent()
+            .context("Couldn't find node parent")?
+            .parent()
+            .context("Couldn't find node parent")?
+    } else {
+        parent
+            .parent()
+            .context("Couldn't find node parent")?
+            .parent()
+            .context("Couldn't find node parent")?
+    };
 
     let mut metrics: Vec<Metric> = vec![];
     let mut errors = vec![];
