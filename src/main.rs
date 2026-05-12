@@ -1,5 +1,7 @@
+mod chunkroll_predictor;
 mod config;
 mod db;
+pub mod drop_simulator;
 mod hiscore_lookup;
 mod update_post;
 
@@ -34,7 +36,33 @@ impl EventHandler for Handler {
 }
 
 impl Handler {
-    async fn handle_message(&self, _ctx: Context, _msg: Message) -> eyre::Result<()> {
+    async fn handle_message(&self, ctx: Context, msg: Message) -> eyre::Result<()> {
+        if msg.channel_id == 871879186732707853
+            && msg
+                .content
+                .split_whitespace()
+                .next()
+                .is_some_and(|word| word == "!when")
+        {
+            let prediction = {
+                let db_conn_guard = self.db_conn.lock().unwrap();
+                let metrics = db::last_scores(&db_conn_guard, "OneChunkUp")?;
+                chunkroll_predictor::predict_chunkroll_date(&metrics)?
+            };
+
+            msg.reply(
+                ctx,
+                format!(
+                    "Limpwurt still needs {} pieces of Dagon'hai robes, and has killed {} chaos dwarves so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
+                    prediction.clogs_left,
+                    prediction.chaos_dwarf_kc,
+                    prediction.average_chunkroll_date.format("%d %B %Y"),
+                    prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
+                    prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
+                ),
+            )
+            .await?;
+        }
         Ok(())
     }
 }
@@ -95,13 +123,31 @@ async fn poll_once(
             {
                 continue;
             }
-            let Some(message) =
+
+            if let Some(message) =
                 update_post::get_update_message(metric, prev_metric, player_config)?
-            else {
-                continue;
-            };
-            if let Err(e) = channel_id.say(&http, &message).await {
-                eprintln!("Discord send error: {:#}", e);
+            {
+                if let Err(e) = channel_id.say(&http, &message).await {
+                    eprintln!("Discord send error: {:#}", e);
+                }
+            }
+
+            if *channel_id == 871879186732707853
+                && (metric.name == "Hitpoints" || metric.name == "Collections Logged")
+            {
+                let prediction = chunkroll_predictor::predict_chunkroll_date(&metrics)?;
+                if prediction.clogs_left == 0 {
+                    continue;
+                }
+                let message = format!(
+                    "Limpwurt still needs {} pieces of Dagon'hai robes, and has killed {} chaos dwarves so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
+                    prediction.clogs_left,
+                    prediction.chaos_dwarf_kc,
+                    prediction.average_chunkroll_date.format("%d %B %Y"),
+                    prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
+                    prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
+                );
+                channel_id.say(&http, message).await?;
             }
         }
     }

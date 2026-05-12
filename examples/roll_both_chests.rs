@@ -1,0 +1,23 @@
+use limpwurt_chunk_roll::drop_simulator::Item;
+use limpwurt_chunk_roll::drop_simulator::LARRANS_CHEST;
+use limpwurt_chunk_roll::drop_simulator::MUDDY_CHEST;
+use std::collections::BTreeMap;
+
+pub fn main() {
+    let mut rng = rand::rng();
+    let mut drops: BTreeMap<Item, u64> = BTreeMap::new();
+    for _ in 0..1_000_000 {
+        let drop = MUDDY_CHEST.roll(&mut rng);
+        for (item, quantity) in drop.iter().copied() {
+            *drops.entry(item).or_insert(0) += quantity as u64;
+            if item == Item::LarransKey {
+                for (item, quantity) in LARRANS_CHEST.roll(&mut rng) {
+                    *drops.entry(item).or_insert(0) += quantity as u64;
+                }
+            }
+        }
+    }
+    for (item, quantity) in drops {
+        println!("{:?}: {}", item, quantity);
+    }
+}
