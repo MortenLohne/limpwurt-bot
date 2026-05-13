@@ -98,6 +98,11 @@ impl MetricUpdates {
         self.exp_updates.is_empty() && self.kc_updates.is_empty()
     }
 
+    pub fn metric_was_updated(&self, name: &str) -> bool {
+        self.exp_updates.iter().any(|u| u.name == name)
+            || self.kc_updates.iter().any(|u| u.name == name)
+    }
+
     pub fn triggers_post(&self, player: &PlayerConfig) -> bool {
         self.exp_updates.iter().any(|u| u.triggers_post(player))
             || self.kc_updates.iter().any(|u| u.triggers_post(player))

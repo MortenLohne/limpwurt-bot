@@ -131,24 +131,26 @@ async fn poll_once(
                     eprintln!("Discord send error: {:#}", e);
                 }
             }
+        }
 
-            if *channel_id == 871879186732707853
-                && (metric.name == "Hitpoints" || metric.name == "Collections Logged")
-            {
-                let prediction = chunkroll_predictor::predict_chunkroll_date(&metrics)?;
-                if prediction.clogs_left == 0 {
-                    continue;
-                }
-                let message = format!(
-                    "Limpwurt still needs {} pieces of Dagon'hai robes, and has killed {} chaos dwarves so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
-                    prediction.clogs_left,
-                    prediction.chaos_dwarf_kc,
-                    prediction.average_chunkroll_date.format("%d %B %Y"),
-                    prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
-                    prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
-                );
-                channel_id.say(&http, message).await?;
+        if *channel_id == 871879186732707853
+            && player_config.player_name.eq_ignore_ascii_case("OneChunkUp")
+            && (metric_updates.metric_was_updated("Hitpoints")
+                || metric_updates.metric_was_updated("Collections Logged"))
+        {
+            let prediction = chunkroll_predictor::predict_chunkroll_date(&metrics)?;
+            if prediction.clogs_left == 0 {
+                continue;
             }
+            let message = format!(
+                "Limpwurt still needs {} pieces of Dagon'hai robes, and has killed {} chaos dwarves so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
+                prediction.clogs_left,
+                prediction.chaos_dwarf_kc,
+                prediction.average_chunkroll_date.format("%d %B %Y"),
+                prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
+                prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
+            );
+            channel_id.say(&http, message).await?;
         }
     }
 
