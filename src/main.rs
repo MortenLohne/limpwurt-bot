@@ -133,8 +133,7 @@ async fn poll_once(
             }
         }
 
-        if *channel_id == 871879186732707853
-            && player_config.player_name.eq_ignore_ascii_case("OneChunkUp")
+        if player_config.player_name.eq_ignore_ascii_case("OneChunkUp")
             && (metric_updates.metric_was_updated("Hitpoints")
                 || metric_updates.metric_was_updated("Collections Logged"))
         {
