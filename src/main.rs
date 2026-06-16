@@ -3,9 +3,11 @@ mod config;
 mod db;
 pub mod drop_simulator;
 mod hiscore_lookup;
+mod sheep_api;
 mod update_post;
 
 use std::collections::HashMap;
+use std::env;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -24,6 +26,7 @@ const POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
 
 struct Handler {
     db_conn: Arc<Mutex<rusqlite::Connection>>,
+    sheep_token: Option<String>,
 }
 
 #[async_trait]
@@ -50,6 +53,12 @@ impl Handler {
                 chunkroll_predictor::predict_chunkroll_date(&metrics)?
             };
 
+            if let Some(token) = &self.sheep_token {
+                if let Err(err) = sheep_api::make_sheep_api_call(token, &prediction).await {
+                    println!("Error: failed to make Sheep API call: {}", err)
+                }
+            }
+
             msg.reply(
                 ctx,
                 format!(
@@ -72,6 +81,7 @@ async fn poll_once(
     conn: Arc<Mutex<rusqlite::Connection>>,
     http: Arc<serenity::http::Http>,
     channels: &HashMap<ChannelId, Vec<PlayerConfig>>,
+    sheep_token: Option<String>,
 ) -> eyre::Result<()> {
     // Get previous metrics
     let player_name = player.name.clone();
@@ -150,6 +160,11 @@ async fn poll_once(
                 prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
             );
             channel_id.say(&http, message).await?;
+            if let Some(ref sheep_token) = sheep_token {
+                if let Err(err) = sheep_api::make_sheep_api_call(sheep_token, &prediction).await {
+                    println!("Error: failed to make Sheep API call: {}", err)
+                }
+            }
         }
     }
 
@@ -171,9 +186,18 @@ async fn player_loop(
     conn: Arc<Mutex<rusqlite::Connection>>,
     http: Arc<serenity::http::Http>,
     channels: Arc<HashMap<ChannelId, Vec<PlayerConfig>>>,
+    sheep_token: Option<String>,
 ) {
     loop {
-        if let Err(e) = poll_once(&player, Arc::clone(&conn), Arc::clone(&http), &channels).await {
+        if let Err(e) = poll_once(
+            &player,
+            Arc::clone(&conn),
+            Arc::clone(&http),
+            &channels,
+            sheep_token.clone(),
+        )
+        .await
+        {
             eprintln!("[{}] Error polling: {:#}", player.name, e);
         }
         tokio::time::sleep(POLL_INTERVAL).await;
@@ -187,16 +211,26 @@ async fn main() -> eyre::Result<()> {
     let config: Config = serde_json::from_slice(&tokio::fs::read("config.json").await?)?;
     config.validate()?;
 
-    let token =
-        std::env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN environment variable must be set");
+    let discord_token =
+        env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN environment variable must be set");
+
+    let sheep_token = env::var("SHEEP_TOKEN")
+        .map_err(|_| {
+            println!(
+                "Warning: SHEEP_TOKEN environment variable required to send updates to Sheep's API"
+            )
+        })
+        .ok()
+        .map(|token| token.trim().to_string());
 
     let conn = db::open(DB_PATH)?;
     let conn = Arc::new(Mutex::new(conn));
 
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
-    let mut client = Client::builder(&token, intents)
+    let mut client = Client::builder(&discord_token, intents)
         .event_handler(Handler {
             db_conn: conn.clone(),
+            sheep_token: sheep_token.clone(),
         })
         .await?;
 
@@ -207,7 +241,14 @@ async fn main() -> eyre::Result<()> {
         let conn_clone = Arc::clone(&conn);
         let http_clone = Arc::clone(&http);
         let channels_cloned = Arc::clone(&channels);
-        tokio::spawn(player_loop(player, conn_clone, http_clone, channels_cloned));
+        let sheep_token_cloned = sheep_token.clone();
+        tokio::spawn(player_loop(
+            player,
+            conn_clone,
+            http_clone,
+            channels_cloned,
+            sheep_token_cloned,
+        ));
     }
 
     client.start().await?;
