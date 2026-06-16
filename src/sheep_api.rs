@@ -15,7 +15,7 @@ pub async fn make_sheep_api_call(
     };
 
     let response = reqwest::Client::new()
-        .post("https://limpwurt.app/api/webhook/roll-estimate")
+        .post("https://www.limpwurt.app/api/webhook/roll-estimate")
         .bearer_auth(auth_token)
         .json(&payload)
         .send()
