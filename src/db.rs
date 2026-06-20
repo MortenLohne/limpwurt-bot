@@ -1,4 +1,4 @@
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::hiscore_lookup::Metric;
 
@@ -92,44 +92,44 @@ pub fn insert_limpwurt_message(
     Ok(())
 }
 
-/// Returns the metrics from the most recent snapshot that triggered an update message for the given player,
-/// along with the timestamp of the snapshot.
+/// Returns the metrics from the most recent snapshot that triggered an update message for the given
+/// player in the given channel, along with the timestamp of the snapshot. Returns `None` if no
+/// update message has been posted for the player in the channel yet.
 pub fn get_last_update_post_metrics(
     conn: &Connection,
     player: &str,
     channel_id: i64,
-) -> rusqlite::Result<(Vec<Metric>, String)> {
-    let mut stmt = conn.prepare(
-        "SELECT m.name, m.rank, m.score, m.exp, s.fetched_at
-         FROM metrics m
-         JOIN snapshots s ON m.snapshot_id = s.id
-         WHERE s.id = (
-             SELECT up.snapshot_id
+) -> rusqlite::Result<Option<(Vec<Metric>, String)>> {
+    let snapshot = conn
+        .query_row(
+            "SELECT up.snapshot_id, s.fetched_at
              FROM update_posts up
-             JOIN snapshots s2 ON up.snapshot_id = s2.id
-             WHERE s2.player = ?1 AND up.channel_id = ?2
+             JOIN snapshots s ON up.snapshot_id = s.id
+             WHERE s.player = ?1 AND up.channel_id = ?2
              ORDER BY up.id DESC
-             LIMIT 1
-         )",
+             LIMIT 1",
+            params![player, channel_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+
+    let Some((snapshot_id, fetched_at)) = snapshot else {
+        return Ok(None);
+    };
+
+    let mut stmt = conn.prepare(
+        "SELECT name, rank, score, exp FROM metrics WHERE snapshot_id = ?1",
     )?;
-    let rows = stmt.query_map(params![player, channel_id], |row| {
-        Ok((
-            Metric {
+    let metrics = stmt
+        .query_map(params![snapshot_id], |row| {
+            Ok(Metric {
                 name: row.get(0)?,
                 rank: row.get(1)?,
                 score: row.get(2)?,
                 exp: row.get(3)?,
-            },
-            row.get::<_, String>(4)?,
-        ))
-    })?;
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
 
-    let mut metrics = Vec::new();
-    let mut fetched_at = String::new();
-    for row in rows {
-        let (metric, ts) = row?;
-        fetched_at = ts;
-        metrics.push(metric);
-    }
-    Ok((metrics, fetched_at))
+    Ok(Some((metrics, fetched_at)))
 }

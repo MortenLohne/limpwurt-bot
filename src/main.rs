@@ -162,7 +162,7 @@ async fn poll_once(
         if player_config.player_name.eq_ignore_ascii_case("OneChunkUp") {
             let conn_clone = Arc::clone(&conn);
             let channel_id_clone = channel_id.get() as i64;
-            let (last_update_metrics, last_update_time) = tokio::task::spawn_blocking(move || {
+            let last_update = tokio::task::spawn_blocking(move || {
                 db::get_last_update_post_metrics(
                     &conn_clone.lock().unwrap(),
                     "OneChunkUp",
@@ -171,62 +171,72 @@ async fn poll_once(
             })
             .await??;
 
-            let last_update_time =
-                chrono::DateTime::parse_from_rfc3339(&last_update_time)?.to_utc();
-            let updates_since_post = metric_updates(
-                &metrics,
-                &last_update_metrics
-                    .into_iter()
-                    .map(|m| (m.name.clone(), m))
-                    .collect(),
-            );
+            let should_post_update = match last_update {
+                None => true,
+                Some((last_update_metrics, last_update_time)) => {
+                    let last_update_time =
+                        chrono::DateTime::parse_from_rfc3339(&last_update_time)?.to_utc();
 
-            println!(
-                "Got updates {:?} compared to {}",
-                updates_since_post, last_update_time
-            );
-            let hp_exp_gained = updates
-                .exp_updates
-                .iter()
-                .find(|metric| metric.name == "Hitpoints")
-                .map(|metric| metric.end_exp - metric.start_exp)
-                .unwrap_or_default();
+                    let updates_since_post = metric_updates(
+                        &metrics,
+                        &last_update_metrics
+                            .into_iter()
+                            .map(|m| (m.name.clone(), m))
+                            .collect(),
+                    );
 
-            if (hp_exp_gained > 0 && current_time - last_update_time > chrono::Duration::hours(18))
-                || updates_since_post.metric_was_updated("Collections Logged")
-                || hp_exp_gained > 81_000
-            {
-                let prediction = chunkroll_predictor::predict_chunkroll_date(&metrics)?;
-                if prediction.clogs_left == 0 {
-                    continue;
+                    println!(
+                        "Got updates {:?} compared to {}",
+                        updates_since_post, last_update_time
+                    );
+
+                    let hp_exp_gained = updates
+                        .exp_updates
+                        .iter()
+                        .find(|metric| metric.name == "Hitpoints")
+                        .map(|metric| metric.end_exp - metric.start_exp)
+                        .unwrap_or_default();
+
+                    (hp_exp_gained > 0
+                        && current_time - last_update_time > chrono::Duration::hours(18))
+                        || updates_since_post.metric_was_updated("Collections Logged")
+                        || hp_exp_gained > 81_000
                 }
-                let message = format!(
-                    "Limpwurt still needs {} pieces of Dagon'hai robes, and has killed {} chaos dwarves so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
-                    prediction.clogs_left,
-                    prediction.chaos_dwarf_kc,
-                    prediction.average_chunkroll_date.format("%d %B %Y"),
-                    prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
-                    prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
-                );
-                channel_id.say(&http, message).await?;
+            };
 
-                if let Some(ref sheep_token) = sheep_token
-                    && let Err(err) = sheep_api::make_sheep_api_call(sheep_token, &prediction).await
-                {
-                    println!("Error: failed to make Sheep API call: {}", err)
-                }
-
-                let conn_clone = conn.clone();
-                let channel_id_clone = channel_id.get() as i64;
-                tokio::task::spawn_blocking(move || {
-                    db::insert_limpwurt_message(
-                        &conn_clone.lock().unwrap(),
-                        new_snapshot_id,
-                        channel_id_clone,
-                    )
-                })
-                .await??;
+            if !should_post_update {
+                continue;
             }
+            let prediction = chunkroll_predictor::predict_chunkroll_date(&metrics)?;
+            if prediction.clogs_left == 0 {
+                continue;
+            }
+            let message = format!(
+                "Limpwurt still needs {} pieces of Dagon'hai robes, and has killed {} chaos dwarves so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
+                prediction.clogs_left,
+                prediction.chaos_dwarf_kc,
+                prediction.average_chunkroll_date.format("%d %B %Y"),
+                prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
+                prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
+            );
+            channel_id.say(&http, message).await?;
+
+            if let Some(ref sheep_token) = sheep_token
+                && let Err(err) = sheep_api::make_sheep_api_call(sheep_token, &prediction).await
+            {
+                println!("Error: failed to make Sheep API call: {}", err)
+            }
+
+            let conn_clone = conn.clone();
+            let channel_id_clone = channel_id.get() as i64;
+            tokio::task::spawn_blocking(move || {
+                db::insert_limpwurt_message(
+                    &conn_clone.lock().unwrap(),
+                    new_snapshot_id,
+                    channel_id_clone,
+                )
+            })
+            .await??;
         }
     }
 
@@ -250,7 +260,7 @@ async fn player_loop(
         )
         .await
         {
-            eprintln!("[{}] Error polling: {:#}", player.name, e);
+            eprintln!("[{}] Error polling: {:?}", player.name, e);
         }
         tokio::time::sleep(POLL_INTERVAL).await;
     }
