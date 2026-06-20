@@ -5,6 +5,7 @@ use eyre::ContextCompat;
 use crate::{config::PlayerConfig, hiscore_lookup::Metric};
 
 // The metrics that were updated since the last lookup
+#[derive(Debug)]
 pub struct MetricUpdates {
     pub exp_updates: Vec<ExpUpdate>,
     pub kc_updates: Vec<KcUpdate>,
@@ -65,6 +66,7 @@ impl PartialOrd for ExpUpdate {
     }
 }
 
+#[derive(Debug)]
 pub struct KcUpdate {
     pub name: String,
     pub start_kc: u32,

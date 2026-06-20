@@ -53,10 +53,10 @@ impl Handler {
                 chunkroll_predictor::predict_chunkroll_date(&metrics)?
             };
 
-            if let Some(token) = &self.sheep_token {
-                if let Err(err) = sheep_api::make_sheep_api_call(token, &prediction).await {
-                    println!("Error: failed to make Sheep API call: {}", err)
-                }
+            if let Some(token) = &self.sheep_token
+                && let Err(err) = sheep_api::make_sheep_api_call(token, &prediction).await
+            {
+                println!("Error: failed to make Sheep API call: {}", err)
             }
 
             msg.reply(
@@ -99,6 +99,21 @@ async fn poll_once(
     // Fetch current metrics
     let metrics = hiscore_lookup::fetch_metrics(player).await?;
 
+    // Insert snapshot
+    let player_name_clone = player.name.clone();
+    let metrics_clone = metrics.clone();
+    let conn_clone = Arc::clone(&conn);
+    let current_time = Utc::now();
+    let new_snapshot_id = tokio::task::spawn_blocking(move || {
+        db::insert_snapshot(
+            &conn_clone.lock().unwrap(),
+            &player_name_clone,
+            &current_time.to_rfc3339(),
+            &metrics_clone,
+        )
+    })
+    .await??;
+
     // Post update messages in all channels subscribed to the player
     for (channel_id, players) in channels {
         // The tracked player may or may not be subscribed to by this channel
@@ -109,15 +124,15 @@ async fn poll_once(
             continue;
         };
 
-        let metric_updates = metric_updates(&metrics, &prev_metrics);
+        let updates = metric_updates(&metrics, &prev_metrics);
 
-        if metric_updates.triggers_post(player_config) {
+        if updates.triggers_post(player_config) {
             println!("Triggered post for {}", player.name);
-            let message = metric_updates.get_full_update_message(player_config);
+            let message = updates.get_full_update_message(player_config);
             println!("{}", message);
-        } else if !metric_updates.is_empty() {
+        } else if !updates.is_empty() {
             println!("Got update for {}, but no post triggered", player.name);
-            let message = metric_updates.get_full_update_message(player_config);
+            let message = updates.get_full_update_message(player_config);
             println!("{}", message);
         }
 
@@ -136,47 +151,84 @@ async fn poll_once(
 
             if let Some(message) =
                 update_post::get_update_message(metric, prev_metric, player_config)?
+                && let Err(e) = channel_id.say(&http, &message).await
             {
-                if let Err(e) = channel_id.say(&http, &message).await {
-                    eprintln!("Discord send error: {:#}", e);
-                }
+                eprintln!("Discord send error: {:#}", e);
             }
         }
 
-        if player_config.player_name.eq_ignore_ascii_case("OneChunkUp")
-            && (metric_updates.metric_was_updated("Hitpoints")
-                || metric_updates.metric_was_updated("Collections Logged"))
-        {
-            let prediction = chunkroll_predictor::predict_chunkroll_date(&metrics)?;
-            if prediction.clogs_left == 0 {
-                continue;
-            }
-            let message = format!(
-                "Limpwurt still needs {} pieces of Dagon'hai robes, and has killed {} chaos dwarves so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
-                prediction.clogs_left,
-                prediction.chaos_dwarf_kc,
-                prediction.average_chunkroll_date.format("%d %B %Y"),
-                prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
-                prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
+        // Check for special Limpwurt update message
+        // Only post this if he has made sufficient progress since the last update message
+        if player_config.player_name.eq_ignore_ascii_case("OneChunkUp") {
+            let conn_clone = Arc::clone(&conn);
+            let channel_id_clone = channel_id.get() as i64;
+            let (last_update_metrics, last_update_time) = tokio::task::spawn_blocking(move || {
+                db::get_last_update_post_metrics(
+                    &conn_clone.lock().unwrap(),
+                    "OneChunkUp",
+                    channel_id_clone,
+                )
+            })
+            .await??;
+
+            let last_update_time =
+                chrono::DateTime::parse_from_rfc3339(&last_update_time)?.to_utc();
+            let updates_since_post = metric_updates(
+                &metrics,
+                &last_update_metrics
+                    .into_iter()
+                    .map(|m| (m.name.clone(), m))
+                    .collect(),
             );
-            channel_id.say(&http, message).await?;
-            if let Some(ref sheep_token) = sheep_token {
-                if let Err(err) = sheep_api::make_sheep_api_call(sheep_token, &prediction).await {
+
+            println!(
+                "Got updates {:?} compared to {}",
+                updates_since_post, last_update_time
+            );
+            let hp_exp_gained = updates
+                .exp_updates
+                .iter()
+                .find(|metric| metric.name == "Hitpoints")
+                .map(|metric| metric.end_exp - metric.start_exp)
+                .unwrap_or_default();
+
+            if (hp_exp_gained > 0 && current_time - last_update_time > chrono::Duration::hours(18))
+                || updates_since_post.metric_was_updated("Collections Logged")
+                || hp_exp_gained > 81_000
+            {
+                let prediction = chunkroll_predictor::predict_chunkroll_date(&metrics)?;
+                if prediction.clogs_left == 0 {
+                    continue;
+                }
+                let message = format!(
+                    "Limpwurt still needs {} pieces of Dagon'hai robes, and has killed {} chaos dwarves so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
+                    prediction.clogs_left,
+                    prediction.chaos_dwarf_kc,
+                    prediction.average_chunkroll_date.format("%d %B %Y"),
+                    prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
+                    prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
+                );
+                channel_id.say(&http, message).await?;
+
+                if let Some(ref sheep_token) = sheep_token
+                    && let Err(err) = sheep_api::make_sheep_api_call(sheep_token, &prediction).await
+                {
                     println!("Error: failed to make Sheep API call: {}", err)
                 }
+
+                let conn_clone = conn.clone();
+                let channel_id_clone = channel_id.get() as i64;
+                tokio::task::spawn_blocking(move || {
+                    db::insert_limpwurt_message(
+                        &conn_clone.lock().unwrap(),
+                        new_snapshot_id,
+                        channel_id_clone,
+                    )
+                })
+                .await??;
             }
         }
     }
-
-    // Insert snapshot
-    let fetched_at = Utc::now().to_rfc3339();
-    let player_name = player.name.clone();
-    let conn_clone = Arc::clone(&conn);
-    tokio::task::spawn_blocking(move || {
-        let guard = conn_clone.lock().unwrap();
-        db::insert_snapshot(&guard, &player_name, &fetched_at, &metrics)
-    })
-    .await??;
 
     Ok(())
 }

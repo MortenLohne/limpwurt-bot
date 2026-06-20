@@ -153,7 +153,7 @@ pub async fn fetch_metrics(player: &PlayerToTrack) -> eyre::Result<Vec<Metric>> 
         if texts_below.is_empty() {
             continue;
         }
-        if let &[ref text] = texts_below.as_slice()
+        if let [text] = texts_below.as_slice()
             && text.starts_with("Personal scores for")
         {
             continue;

@@ -266,7 +266,7 @@ impl DropTable {
             }
         }
 
-        return drops;
+        drops
     }
 }
 
