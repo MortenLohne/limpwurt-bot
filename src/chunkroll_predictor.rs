@@ -27,6 +27,16 @@ pub fn predict_chunkroll_date(metrics: &[Metric]) -> eyre::Result<PredictionResu
 
     let chaos_dwarf_hp_exp = 81;
     let chaos_dwarf_kc = delta_hp_exp / chaos_dwarf_hp_exp;
+
+    // Each chaos dwarf has an effective 3/2560 chance to drop a Larran's key, so the
+    // number of keys is Binomial(n = chaos_dwarf_kc, p = 3/2560). Use the normal
+    // approximation for the 95% confidence interval (z = 1.96).
+    let larrans_key_chance = 3.0 / 2560.0;
+    let n = chaos_dwarf_kc as f32;
+    let expected_larrans_keys = n * larrans_key_chance;
+    let larrans_keys_sigma = (n * larrans_key_chance * (1.0 - larrans_key_chance)).sqrt();
+    let larrans_keys_margin = 1.96 * larrans_keys_sigma;
+
     let muddy_keys = chaos_dwarf_kc as f32 / 18.29;
     let muddy_keys_per_day = muddy_keys / days_elapsed;
 
@@ -59,6 +69,8 @@ pub fn predict_chunkroll_date(metrics: &[Metric]) -> eyre::Result<PredictionResu
     Ok(PredictionResult {
         clogs_left: 3u32.saturating_sub(delta_clogs),
         chaos_dwarf_kc,
+        expected_larrans_keys,
+        larrans_keys_margin,
         average_chunkroll_date,
         lower_bound_chunkroll_date,
         upper_bound_chunkroll_date,
@@ -68,6 +80,8 @@ pub fn predict_chunkroll_date(metrics: &[Metric]) -> eyre::Result<PredictionResu
 pub struct PredictionResult {
     pub clogs_left: u32,
     pub chaos_dwarf_kc: u32,
+    pub expected_larrans_keys: f32,
+    pub larrans_keys_margin: f32,
     pub average_chunkroll_date: DateTime<Utc>,
     pub lower_bound_chunkroll_date: DateTime<Utc>,
     pub upper_bound_chunkroll_date: DateTime<Utc>,
