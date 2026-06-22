@@ -117,9 +117,8 @@ pub fn get_last_update_post_metrics(
         return Ok(None);
     };
 
-    let mut stmt = conn.prepare(
-        "SELECT name, rank, score, exp FROM metrics WHERE snapshot_id = ?1",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT name, rank, score, exp FROM metrics WHERE snapshot_id = ?1")?;
     let metrics = stmt
         .query_map(params![snapshot_id], |row| {
             Ok(Metric {

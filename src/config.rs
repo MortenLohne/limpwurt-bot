@@ -38,6 +38,12 @@ pub struct PlayerToTrack {
     pub name: String,
     #[serde(rename = "type")]
     pub account_type: AccountType,
+    #[serde(default = "default_poll_interval_seconds")]
+    pub poll_interval_seconds: u64,
+}
+
+fn default_poll_interval_seconds() -> u64 {
+    15 * 60
 }
 
 #[derive(Debug, Deserialize)]

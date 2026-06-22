@@ -5,7 +5,7 @@ Tracks osrs players (Like Limpwurt) on the hiscores, and posts achievements in D
 Example `config.json`:
 ```
 {
-  "playersToTrack": [{ "name": "OneChunkUp", "type": "main" }],
+  "playersToTrack": [{ "name": "OneChunkUp", "type": "ironman", "pollIntervalSeconds": 300 }],
   "channels": {
     "812770607527231488": [
       {

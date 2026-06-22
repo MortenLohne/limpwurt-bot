@@ -22,7 +22,6 @@ use crate::config::{Config, PlayerConfig, PlayerToTrack};
 use crate::update_post::metric_updates;
 
 const DB_PATH: &str = "hiscores.db";
-const POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
 
 struct Handler {
     db_conn: Arc<Mutex<rusqlite::Connection>>,
@@ -266,7 +265,7 @@ async fn player_loop(
         {
             eprintln!("[{}] Error polling: {:?}", player.name, e);
         }
-        tokio::time::sleep(POLL_INTERVAL).await;
+        tokio::time::sleep(Duration::from_secs(player.poll_interval_seconds)).await;
     }
 }
 
