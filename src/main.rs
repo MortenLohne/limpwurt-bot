@@ -192,7 +192,7 @@ async fn poll_once(
                         updates_since_post, last_update_time
                     );
 
-                    let hp_exp_gained = updates
+                    let hp_exp_gained = updates_since_post
                         .exp_updates
                         .iter()
                         .find(|metric| metric.name == "Hitpoints")
