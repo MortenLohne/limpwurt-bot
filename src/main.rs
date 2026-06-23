@@ -39,7 +39,7 @@ impl EventHandler for Handler {
 
 impl Handler {
     async fn handle_message(&self, ctx: Context, msg: Message) -> eyre::Result<()> {
-        if msg.channel_id == 871879186732707853
+        if (msg.channel_id == 871879186732707853 || msg.channel_id == 1519033708424724600)
             && msg
                 .content
                 .split_whitespace()
@@ -162,7 +162,7 @@ async fn poll_once(
         // Only post this if he has made sufficient progress since the last update message
         if player_config.player_name.eq_ignore_ascii_case("OneChunkUp") {
             let conn_clone = Arc::clone(&conn);
-            let channel_id_clone = channel_id.get() as i64;
+            let channel_id_clone = channel_id.get().try_into()?;
             let last_update = tokio::task::spawn_blocking(move || {
                 db::get_last_update_post_metrics(
                     &conn_clone.lock().unwrap(),
@@ -226,7 +226,7 @@ async fn poll_once(
             }
 
             let conn_clone = conn.clone();
-            let channel_id_clone = channel_id.get() as i64;
+            let channel_id_clone = channel_id.get().try_into()?;
             tokio::task::spawn_blocking(move || {
                 db::insert_limpwurt_message(
                     &conn_clone.lock().unwrap(),
