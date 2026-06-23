@@ -186,11 +186,6 @@ async fn poll_once(
                             .collect(),
                     );
 
-                    println!(
-                        "Got updates {:?} compared to {}",
-                        updates_since_post, last_update_time
-                    );
-
                     let hp_exp_gained = updates_since_post
                         .exp_updates
                         .iter()
