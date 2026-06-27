@@ -186,17 +186,24 @@ async fn poll_once(
                             .collect(),
                     );
 
-                    let hp_exp_gained = updates_since_post
+                    let hp_exp_gained_now = updates
                         .exp_updates
                         .iter()
                         .find(|metric| metric.name == "Hitpoints")
                         .map(|metric| metric.end_exp - metric.start_exp)
                         .unwrap_or_default();
 
-                    (hp_exp_gained > 0
+                    let hp_exp_since_update = updates_since_post
+                        .exp_updates
+                        .iter()
+                        .find(|metric| metric.name == "Hitpoints")
+                        .map(|metric| metric.end_exp - metric.start_exp)
+                        .unwrap_or_default();
+
+                    (hp_exp_gained_now > 0
                         && current_time - last_update_time > chrono::Duration::hours(18))
                         || updates_since_post.metric_was_updated("Collections Logged")
-                        || hp_exp_gained > 81_000
+                        || hp_exp_since_update > 81_000
                 }
             };
 
