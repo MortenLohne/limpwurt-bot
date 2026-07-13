@@ -13,7 +13,7 @@ pub fn predict_chunkroll_date(metrics: &[Metric]) -> eyre::Result<PredictionResu
         .context("No hitpoints exp found")?;
     let delta_hp_exp = current_hp_exp - start_hp_exp;
 
-    let start_clogs = 314;
+    let start_clogs = 315;
     let current_clogs = metrics
         .iter()
         .find(|m| m.name == "Collections Logged")
