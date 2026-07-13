@@ -61,15 +61,20 @@ impl Handler {
             msg.reply(
                 ctx,
                 format!(
-                    "Limpwurt still needs {} pieces of Dagon'hai robes. He has killed {} chaos dwarves and gotten **{:.1} +/- {:.1}** Larran's keys so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
+                    "Limpwurt still needs {} {} of Dagon'hai robes. He has killed {} chaos dwarves and gotten **{:.1} +/- {:.1}** Larran's keys so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
                     prediction.clogs_left,
+                    if prediction.clogs_left == 1 {
+                        "piece"
+                    } else {
+                        "pieces"
+                    },
                     prediction.chaos_dwarf_kc,
                     prediction.expected_larrans_keys,
                     prediction.larrans_keys_margin,
                     prediction.average_chunkroll_date.format("%d %B %Y"),
                     prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
                     prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
-                ),
+                )
             )
             .await?;
         }
@@ -215,8 +220,13 @@ async fn poll_once(
                 continue;
             }
             let message = format!(
-                "Limpwurt still needs {} pieces of Dagon'hai robes. He has killed {} chaos dwarves and gotten **{:.1} +/- {:.1}** Larran's keys so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
+                "Limpwurt still needs {} {} of Dagon'hai robes. He has killed {} chaos dwarves and gotten **{:.1} +/- {:.1}** Larran's keys so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
                 prediction.clogs_left,
+                if prediction.clogs_left == 1 {
+                    "piece"
+                } else {
+                    "pieces"
+                },
                 prediction.chaos_dwarf_kc,
                 prediction.expected_larrans_keys,
                 prediction.larrans_keys_margin,
