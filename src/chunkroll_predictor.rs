@@ -19,7 +19,7 @@ pub fn predict_chunkroll_date(metrics: &[Metric]) -> eyre::Result<PredictionResu
         .find(|m| m.name == "Collections Logged")
         .context("Collections Logged metric not found")?
         .score;
-    let delta_clogs = current_clogs - start_clogs;
+    let delta_clogs = current_clogs.saturating_sub(start_clogs);
 
     let grind_start = DateTime::parse_from_rfc3339("2026-05-10T21:00:00+02:00")?;
     let elapsed = Utc::now() - grind_start.to_utc();
