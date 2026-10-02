@@ -39,7 +39,7 @@ impl EventHandler for Handler {
 
 impl Handler {
     async fn handle_message(&self, ctx: Context, msg: Message) -> eyre::Result<()> {
-        if msg.channel_id == 871879186732707853
+        if (msg.channel_id == 871879186732707853 || msg.channel_id == 1519033708424724600)
             && msg
                 .content
                 .split_whitespace()
@@ -155,9 +155,8 @@ async fn poll_once(
         // Check for special Limpwurt update message
         // Only post this if he has made sufficient progress since the last update message
         if player_config.player_name.eq_ignore_ascii_case("OneChunkUp")
-            && channel_id.get() != 812770607527231488 // Skip #theorycrafting
-            && channel_id.get() != 1519033708424724600
-        // Temporarily skip #botspam channel too
+            && channel_id.get() != 812770607527231488
+        // Skip #theorycrafting
         {
             let conn_clone = Arc::clone(&conn);
             let channel_id_clone = channel_id.get().try_into()?;
@@ -184,24 +183,23 @@ async fn poll_once(
                             .collect(),
                     );
 
-                    let hp_exp_gained_now = updates
+                    let crafting_exp_gained_now = updates
                         .exp_updates
                         .iter()
-                        .find(|metric| metric.name == "Hitpoints")
+                        .find(|metric| metric.name == "Crafting")
                         .map(|metric| metric.end_exp - metric.start_exp)
                         .unwrap_or_default();
 
-                    let hp_exp_since_update = updates_since_post
+                    let crafting_exp_since_update = updates_since_post
                         .exp_updates
                         .iter()
-                        .find(|metric| metric.name == "Hitpoints")
+                        .find(|metric| metric.name == "Crafting")
                         .map(|metric| metric.end_exp - metric.start_exp)
                         .unwrap_or_default();
 
-                    (hp_exp_gained_now > 0
-                        && current_time - last_update_time > chrono::Duration::hours(18))
-                        || updates_since_post.metric_was_updated("Collections Logged")
-                        || hp_exp_since_update > 81_000
+                    (crafting_exp_gained_now > 0
+                        && current_time - last_update_time > chrono::Duration::hours(8))
+                        || crafting_exp_since_update > 100_000
                 }
             };
 
