@@ -39,7 +39,7 @@ impl EventHandler for Handler {
 
 impl Handler {
     async fn handle_message(&self, ctx: Context, msg: Message) -> eyre::Result<()> {
-        if (msg.channel_id == 871879186732707853 || msg.channel_id == 1519033708424724600)
+        if msg.channel_id == 871879186732707853
             && msg
                 .content
                 .split_whitespace()
@@ -142,21 +142,28 @@ async fn poll_once(
             println!("{}", message);
         }
 
-        for metric in &metrics {
-            let Some(prev_metric) = prev_metrics.get(&metric.name) else {
-                continue;
-            };
+        if prev_metrics.is_empty() {
+            println!("Got first metrics for {}", player.name);
+            continue;
+        }
 
-            if !(metric.score > prev_metric.score
-                || metric
-                    .exp
-                    .is_some_and(|exp| prev_metric.exp.is_some_and(|prev_exp| exp > prev_exp)))
+        for metric in &metrics {
+            let prev_metric = prev_metrics.get(&metric.name).cloned();
+
+            if !(prev_metric
+                .as_ref()
+                .is_some_and(|prev_metric| metric.score > prev_metric.score)
+                || metric.exp.is_some_and(|exp| {
+                    prev_metric.as_ref().is_some_and(|prev_metric| {
+                        prev_metric.exp.is_some_and(|prev_exp| exp > prev_exp)
+                    })
+                }))
             {
                 continue;
             }
 
             if let Some(message) =
-                update_post::get_update_message(metric, prev_metric, player_config)?
+                update_post::get_update_message(metric, &prev_metric, player_config)?
                 && let Err(e) = channel_id.say(&http, &message).await
             {
                 eprintln!("Discord send error: {:#}", e);
@@ -165,7 +172,9 @@ async fn poll_once(
 
         // Check for special Limpwurt update message
         // Only post this if he has made sufficient progress since the last update message
-        if player_config.player_name.eq_ignore_ascii_case("OneChunkUp") {
+        if player_config.player_name.eq_ignore_ascii_case("OneChunkUp")
+            && channel_id.get() != 812770607527231488
+        {
             let conn_clone = Arc::clone(&conn);
             let channel_id_clone = channel_id.get().try_into()?;
             let last_update = tokio::task::spawn_blocking(move || {

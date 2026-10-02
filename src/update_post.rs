@@ -224,23 +224,26 @@ pub fn metric_updates(metrics: &[Metric], prev_metrics: &HashMap<String, Metric>
 
 pub fn get_update_message(
     metric: &Metric,
-    prev_metric: &Metric,
+    prev_metric: &Option<Metric>,
     player: &PlayerConfig,
 ) -> eyre::Result<Option<String>> {
     println!(
-        "Metric updated for {}: {} -> {}",
+        "Metric updated for {}: {:?} -> {}",
         player.player_alias(),
-        metric,
-        prev_metric
+        prev_metric.as_ref().map(ToString::to_string),
+        metric
     );
     if player.metrics_blacklist.contains(&metric.name) {
         return Ok(None);
     }
     if let Some(exp) = metric.exp {
         // This is an exp metric
-        let exp_gained = exp - prev_metric.exp.context("No previous exp")?;
+        // Assume the player previously had 0 exp, if we have no previous metric
+        let exp_gained = exp - prev_metric.as_ref().and_then(|m| m.exp).unwrap_or(0);
         if (player.show_levelups || player.metrics_whitelist.contains(&metric.name))
-            && metric.score > prev_metric.score
+            && prev_metric
+                .as_ref()
+                .is_none_or(|prev_metric| metric.score > prev_metric.score)
         {
             Ok(Some(format!(
                 "{} just got level {} {}{}!",
@@ -262,18 +265,21 @@ pub fn get_update_message(
             Ok(None)
         }
     } else {
-        // This is a kc metric
-        let delta = metric
-            .score
-            .checked_sub(prev_metric.score)
-            .with_context(|| {
-                format!(
-                    "{} kc decreased {} -> {}",
-                    metric.name, prev_metric.score, metric.score
-                )
-            })?;
         if player.show_kc_increases || player.metrics_whitelist.contains(&metric.name) {
             if metric.name == "Collections Logged" {
+                let Some(prev_metric) = prev_metric else {
+                    return Ok(None);
+                };
+                // This is a kc metric
+                let delta = metric
+                    .score
+                    .checked_sub(prev_metric.score)
+                    .with_context(|| {
+                        format!(
+                            "{} kc decreased {} -> {}",
+                            metric.name, prev_metric.score, metric.score
+                        )
+                    })?;
                 if delta == 1 {
                     Ok(Some(format!(
                         "{} got a new collection log slot{}! What could it be?",
@@ -294,7 +300,10 @@ pub fn get_update_message(
                     player.player_alias(),
                     metric.name,
                     player.player_explanation,
-                    prev_metric.score,
+                    prev_metric
+                        .as_ref()
+                        .map(|m| m.score.to_string())
+                        .unwrap_or("Unranked".to_string()),
                     metric.score
                 )))
             }
