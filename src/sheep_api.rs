@@ -7,11 +7,11 @@ pub async fn make_sheep_api_call(
     prediction: &PredictionResult,
 ) -> eyre::Result<()> {
     let payload = SheepPayload {
-        roll_number: 110,
+        roll_number: 116,
         eta_date: prediction.average_chunkroll_date,
-        range_start: prediction.lower_bound_chunkroll_date,
-        range_end: prediction.upper_bound_chunkroll_date,
-        method: "Kill 400k chaos dwarves for Larran's keys to obtain Dagon'hai robes".to_string(),
+        range_start: prediction.average_chunkroll_date,
+        range_end: prediction.average_chunkroll_date,
+        method: "Get 99 crafting to access Mac's island".to_string(),
     };
 
     let response = reqwest::Client::new()

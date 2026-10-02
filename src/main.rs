@@ -58,25 +58,7 @@ impl Handler {
                 println!("Error: failed to make Sheep API call: {}", err)
             }
 
-            msg.reply(
-                ctx,
-                format!(
-                    "Limpwurt still needs {} {} of Dagon'hai robes. He has killed {} chaos dwarves and gotten **{:.1} +/- {:.1}** Larran's keys so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
-                    prediction.clogs_left,
-                    if prediction.clogs_left == 1 {
-                        "piece"
-                    } else {
-                        "pieces"
-                    },
-                    prediction.chaos_dwarf_kc,
-                    prediction.expected_larrans_keys,
-                    prediction.larrans_keys_margin,
-                    prediction.average_chunkroll_date.format("%d %B %Y"),
-                    prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
-                    prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
-                )
-            )
-            .await?;
+            msg.reply(ctx, prediction.update_message()).await?;
         }
         Ok(())
     }
@@ -173,7 +155,9 @@ async fn poll_once(
         // Check for special Limpwurt update message
         // Only post this if he has made sufficient progress since the last update message
         if player_config.player_name.eq_ignore_ascii_case("OneChunkUp")
-            && channel_id.get() != 812770607527231488
+            && channel_id.get() != 812770607527231488 // Skip #theorycrafting
+            && channel_id.get() != 1519033708424724600
+        // Temporarily skip #botspam channel too
         {
             let conn_clone = Arc::clone(&conn);
             let channel_id_clone = channel_id.get().try_into()?;
@@ -225,25 +209,10 @@ async fn poll_once(
                 continue;
             }
             let prediction = chunkroll_predictor::predict_chunkroll_date(&metrics)?;
-            if prediction.clogs_left == 0 {
+            if prediction.crafting_exp_left == 0 {
                 continue;
             }
-            let message = format!(
-                "Limpwurt still needs {} {} of Dagon'hai robes. He has killed {} chaos dwarves and gotten **{:.1} +/- {:.1}** Larran's keys so far. Chunkroll is estimated on **{}**, and between **{}** and **{}** with 95% confidence.",
-                prediction.clogs_left,
-                if prediction.clogs_left == 1 {
-                    "piece"
-                } else {
-                    "pieces"
-                },
-                prediction.chaos_dwarf_kc,
-                prediction.expected_larrans_keys,
-                prediction.larrans_keys_margin,
-                prediction.average_chunkroll_date.format("%d %B %Y"),
-                prediction.lower_bound_chunkroll_date.format("%d %B %Y"),
-                prediction.upper_bound_chunkroll_date.format("%d %B %Y"),
-            );
-            channel_id.say(&http, message).await?;
+            channel_id.say(&http, prediction.update_message()).await?;
 
             if let Some(ref sheep_token) = sheep_token
                 && let Err(err) = sheep_api::make_sheep_api_call(sheep_token, &prediction).await
