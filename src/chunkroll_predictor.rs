@@ -15,7 +15,7 @@ pub fn predict_chunkroll_date(metrics: &[Metric]) -> eyre::Result<PredictionResu
     let target_crafting_exp = 13_034_431u32;
     // Banked materials (uncut gems etc.) are expected to run out around this point,
     // after which exp is assumed to come in at 1/3 of the rate from before
-    let slowdown_crafting_exp = 11_000_000u32;
+    let slowdown_crafting_exp = 12_300_000u32;
     let slowdown_factor = 3.0;
 
     // Exp after the slowdown point counts `slowdown_factor` times as much towards the time spent
@@ -24,8 +24,11 @@ pub fn predict_chunkroll_date(metrics: &[Metric]) -> eyre::Result<PredictionResu
             + slowdown_factor * exp.saturating_sub(slowdown_crafting_exp) as f32
     };
 
-    let grind_start = DateTime::parse_from_rfc3339("2026-09-30T23:00:00+02:00")?;
-    let elapsed = Utc::now() - grind_start.to_utc();
+    let grind_start = DateTime::parse_from_rfc3339("2026-09-30T23:00:00+02:00")?
+        .to_utc()
+        .checked_add_days(chrono::Days::new(4)) // Hardcoded offset to account for banked earth orbs
+        .context("Failed chrono days calculation")?;
+    let elapsed = Utc::now() - grind_start;
     let days_elapsed = elapsed.as_seconds_f32() / 86_400.0;
 
     let ratio_done = delta_crafting_exp as f32 / (target_crafting_exp - start_crafting_exp) as f32;
@@ -34,7 +37,6 @@ pub fn predict_chunkroll_date(metrics: &[Metric]) -> eyre::Result<PredictionResu
     let crafting_exp_left = target_crafting_exp.saturating_sub(current_crafting_exp);
     let percent_done = 100.0 * ratio_done;
     let average_chunkroll_date = grind_start
-        .to_utc()
         .checked_add_days(chrono::Days::new(
             (days_elapsed / time_ratio_done).ceil() as u64
         ))
