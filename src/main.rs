@@ -1,10 +1,9 @@
 mod chunkroll_predictor;
-mod config;
 mod db;
 pub mod drop_simulator;
-mod hiscore_lookup;
 mod sheep_api;
-mod update_post;
+
+use limpwurt_chunk_roll::{config, hiscore_lookup, update_post};
 
 use std::collections::HashMap;
 use std::env;
