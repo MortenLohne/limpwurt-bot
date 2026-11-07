@@ -24,7 +24,7 @@ impl Config {
                         "Player {} is configured for channel id {}, but is not tracked on hiscores",
                         player_config.player_name,
                         channel_id
-                    )
+                    );
                 }
             }
         }
