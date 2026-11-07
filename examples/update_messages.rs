@@ -1,13 +1,15 @@
 //! Replays the hiscores database through the new update message system (`metric_updates` and
-//! `MetricUpdates::get_full_update_message`), and prints the latest messages it would have posted
-//! in Discord, using the current code and `config.json`.
+//! `MetricUpdates::update_messages`), and prints the latest messages it would have posted in
+//! Discord, using the current code and `config.json`.
 //!
 //! Usage:
 //!     cargo run --example update_messages -- [-n COUNT] [--player NAME] [--channel ID]
 //!                                            [--db PATH] [--config PATH]
 //!
-//! When the same snapshot produces an identical message in several channels, it is printed once,
-//! listing all the channels.
+//! Each hiscores update may post several messages, which are printed together as one post, one
+//! bullet per Discord message. When the same snapshot produces identical messages in several
+//! channels, the post is printed once, listing all the channels. To avoid splitting a post, slightly
+//! more than COUNT messages may be printed.
 
 use std::collections::HashMap;
 
@@ -54,11 +56,12 @@ fn parse_args() -> eyre::Result<Args> {
     Ok(args)
 }
 
-struct DiscordMessage {
+/// All the messages posted to a set of channels after a single hiscores update
+struct DiscordPost {
     fetched_at: String,
     player: String,
     channel_ids: Vec<ChannelId>,
-    text: String,
+    messages: Vec<String>,
 }
 
 fn load_metrics(stmt: &mut Statement, snapshot_id: i64) -> rusqlite::Result<Vec<Metric>> {
@@ -119,10 +122,11 @@ fn main() -> eyre::Result<()> {
     // Walking backwards, each snapshot is first the newer side of a pair, and then the older side
     // of the next pair for that player. Cache the older side, to avoid loading it twice.
     let mut older_metrics_cache: HashMap<String, (i64, Vec<Metric>)> = HashMap::new();
-    let mut messages: Vec<DiscordMessage> = Vec::new();
+    let mut posts: Vec<DiscordPost> = Vec::new();
+    let mut message_count = 0;
 
     let mut snapshots = snapshots_stmt.query(params![player_filter])?;
-    while messages.len() < args.count
+    while message_count < args.count
         && let Some(row) = snapshots.next()?
     {
         let snapshot_id: i64 = row.get(0)?;
@@ -164,46 +168,50 @@ fn main() -> eyre::Result<()> {
         }
 
         // Same logic as in `poll_once`
-        let mut snapshot_messages: Vec<DiscordMessage> = Vec::new();
+        let mut snapshot_posts: Vec<DiscordPost> = Vec::new();
         for (channel_id, players) in &channels {
             let Some(player_config) = players.iter().find(|p| p.player_name == player) else {
                 continue;
             };
-            if !updates.triggers_post(player_config) {
+            let messages = updates.update_messages(player_config);
+            if messages.is_empty() {
                 continue;
             }
-            let text = updates.get_full_update_message(player_config);
-            match snapshot_messages.iter_mut().find(|m| m.text == text) {
-                Some(message) => message.channel_ids.push(**channel_id),
-                None => snapshot_messages.push(DiscordMessage {
-                    fetched_at: fetched_at.clone(),
-                    player: player.clone(),
-                    channel_ids: vec![**channel_id],
-                    text,
-                }),
+            match snapshot_posts.iter_mut().find(|p| p.messages == messages) {
+                Some(post) => post.channel_ids.push(**channel_id),
+                None => {
+                    message_count += messages.len();
+                    snapshot_posts.push(DiscordPost {
+                        fetched_at: fetched_at.clone(),
+                        player: player.clone(),
+                        channel_ids: vec![**channel_id],
+                        messages,
+                    })
+                }
             }
         }
-        messages.extend(snapshot_messages);
+        posts.extend(snapshot_posts);
     }
-    messages.truncate(args.count);
 
     // Print oldest first, like a Discord channel
-    for message in messages.iter().rev() {
-        let time = chrono::DateTime::parse_from_rfc3339(&message.fetched_at)?
+    for post in posts.iter().rev() {
+        let time = chrono::DateTime::parse_from_rfc3339(&post.fetched_at)?
             .to_utc()
             .format("%Y-%m-%d %H:%M UTC");
-        let channels = message
+        let channels = post
             .channel_ids
             .iter()
             .map(|id| format!("#{id}"))
             .collect::<Vec<_>>()
             .join(", ");
-        println!("── {time} · {} → {channels}", message.player);
-        println!("{}", message.text);
+        println!("── {time} · {} → {channels}", post.player);
+        for message in &post.messages {
+            println!("• {message}");
+        }
         println!();
     }
-    if messages.len() < args.count {
-        println!("(Only found {} messages in the database)", messages.len());
+    if message_count < args.count {
+        println!("(Only found {message_count} messages in the database)");
     }
 
     Ok(())

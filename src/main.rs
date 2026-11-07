@@ -113,14 +113,14 @@ async fn poll_once(
 
         let updates = metric_updates(&metrics, &prev_metrics);
 
-        if updates.triggers_post(player_config) {
+        let messages = updates.update_messages(player_config);
+        if !messages.is_empty() {
             println!("Triggered post for {}", player.name);
-            let message = updates.get_full_update_message(player_config);
-            println!("{}", message);
+            for message in &messages {
+                println!("{}", message);
+            }
         } else if !updates.is_empty() {
             println!("Got update for {}, but no post triggered", player.name);
-            let message = updates.get_full_update_message(player_config);
-            println!("{}", message);
         }
 
         if prev_metrics.is_empty() {

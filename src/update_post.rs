@@ -20,30 +20,27 @@ pub struct ExpUpdate {
     pub end_level: u32,
 }
 
+/// The hiscores metric for collection log slots, which gets its own message
+const COLLECTIONS_LOGGED: &str = "Collections Logged";
+
 impl ExpUpdate {
-    pub fn triggers_post(&self, player: &PlayerConfig) -> bool {
-        if player.metrics_blacklist.contains(&self.name) {
-            return false;
-        }
-        if self.end_level > self.start_level {
-            player.metrics_whitelist.contains(&self.name) || player.show_levelups
-        } else {
-            // Don't show exp gains without levelups, even when whitelisted
-            player.show_exp_gain
-        }
+    pub fn exp_gained(&self) -> u32 {
+        self.end_exp.saturating_sub(self.start_exp)
     }
 
-    pub fn update_message_part(&self) -> String {
-        if self.end_level > self.start_level {
-            format!(
-                "level {} {} ({} exp)",
-                self.end_level,
-                self.name,
-                self.end_exp - self.start_exp
-            )
-        } else {
-            format!("{} {} exp", self.end_exp - self.start_exp, self.name)
-        }
+    /// Whether this update should be included in the levelup message
+    pub fn shows_levelup(&self, player: &PlayerConfig) -> bool {
+        self.end_level > self.start_level
+            && !player.metrics_blacklist.contains(&self.name)
+            && (player.show_levelups || player.metrics_whitelist.contains(&self.name))
+    }
+
+    /// Whether this update should be included in the exp gain message, regardless of levelups
+    pub fn shows_exp_gain(&self, player: &PlayerConfig) -> bool {
+        // The whitelist only enables levelups, not exp gains
+        self.exp_gained() > 0
+            && player.show_exp_gain
+            && !player.metrics_blacklist.contains(&self.name)
     }
 }
 
@@ -74,24 +71,14 @@ pub struct KcUpdate {
 }
 
 impl KcUpdate {
-    pub fn triggers_post(&self, player: &PlayerConfig) -> bool {
-        if player.metrics_blacklist.contains(&self.name) {
-            return false;
-        }
-        player.metrics_whitelist.contains(&self.name) || player.show_kc_increases
+    pub fn kc_gained(&self) -> u32 {
+        self.end_kc.saturating_sub(self.start_kc)
     }
 
-    pub fn update_message_part(&self) -> String {
-        let delta = self.end_kc - self.start_kc;
-        if self.name == "Collections Logged" {
-            if delta == 1 {
-                "a new collection log slot".to_string()
-            } else {
-                format!("{} new collection log slots", delta)
-            }
-        } else {
-            format!("{} **{}** kc", delta, self.name)
-        }
+    /// Whether this update should be included in the kc or collection log message
+    pub fn is_shown(&self, player: &PlayerConfig) -> bool {
+        !player.metrics_blacklist.contains(&self.name)
+            && (player.show_kc_increases || player.metrics_whitelist.contains(&self.name))
     }
 }
 
@@ -105,67 +92,111 @@ impl MetricUpdates {
             || self.kc_updates.iter().any(|u| u.name == name)
     }
 
-    pub fn triggers_post(&self, player: &PlayerConfig) -> bool {
-        self.exp_updates.iter().any(|u| u.triggers_post(player))
-            || self.kc_updates.iter().any(|u| u.triggers_post(player))
+    /// The Discord messages to post for these updates, in posting order. There is a separate
+    /// message for levelups, exp gains, kc increases and collection log slots, each including only
+    /// the metrics that are enabled for the player. Empty if nothing should be posted.
+    pub fn update_messages(&self, player: &PlayerConfig) -> Vec<String> {
+        [
+            self.levelup_message(player),
+            self.exp_gain_message(player),
+            self.kc_message(player),
+            self.collection_log_message(player),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 
-    pub fn get_full_update_message(&self, player: &PlayerConfig) -> String {
-        let mut high_prio_parts: Vec<String> = Vec::new();
-        let mut low_prio_parts: Vec<String> = Vec::new();
-
-        for exp_update in self.exp_updates.iter() {
-            if player.metrics_blacklist.contains(&exp_update.name) {
-                continue;
-            }
-            let message_part = exp_update.update_message_part();
-            if exp_update.end_level > exp_update.start_level {
-                high_prio_parts.push(message_part);
-            } else {
-                low_prio_parts.push(message_part);
-            }
+    fn levelup_message(&self, player: &PlayerConfig) -> Option<String> {
+        let levelups: Vec<String> = self
+            .exp_updates
+            .iter()
+            .filter(|u| u.shows_levelup(player))
+            .map(|u| format!("level {} {}", u.end_level, u.name))
+            .collect();
+        if levelups.is_empty() {
+            return None;
         }
+        Some(format!(
+            "{} just got {}{}!",
+            player.player_alias(),
+            join_messages(&levelups),
+            player.player_explanation
+        ))
+    }
 
-        for kc_update in self.kc_updates.iter() {
-            if player.metrics_blacklist.contains(&kc_update.name) {
-                continue;
-            }
-            let message_part = kc_update.update_message_part();
-            if kc_update.name == "Collections Logged" || kc_update.name.contains("Clue Scrolls") {
-                high_prio_parts.push(message_part);
-            } else {
-                low_prio_parts.push(message_part);
-            }
+    fn exp_gain_message(&self, player: &PlayerConfig) -> Option<String> {
+        let mut exp_updates: Vec<&ExpUpdate> = self
+            .exp_updates
+            .iter()
+            .filter(|u| u.shows_exp_gain(player))
+            .collect();
+        if exp_updates.is_empty() {
+            return None;
         }
+        // Biggest exp gains first, regardless of levelups
+        exp_updates.sort_by_key(|u| std::cmp::Reverse(u.exp_gained()));
+        let exp_gains: Vec<String> = exp_updates
+            .iter()
+            .map(|u| format!("{} {} exp", u.exp_gained(), u.name))
+            .collect();
+        Some(format!(
+            "{} got {}{}!",
+            player.player_alias(),
+            join_messages(&exp_gains),
+            player.player_explanation
+        ))
+    }
 
-        match (high_prio_parts.is_empty(), low_prio_parts.is_empty()) {
-            (true, true) => unreachable!(),
-            (true, false) => {
-                format!(
-                    "{} just got {}{}!",
+    fn kc_message(&self, player: &PlayerConfig) -> Option<String> {
+        let kc_updates: Vec<&KcUpdate> = self
+            .kc_updates
+            .iter()
+            .filter(|u| u.name != COLLECTIONS_LOGGED && u.is_shown(player))
+            .collect();
+        match kc_updates.as_slice() {
+            [] => None,
+            [u] => Some(format!(
+                "{} increased **{}** kc{}: {} -> {}",
+                player.player_alias(),
+                u.name,
+                player.player_explanation,
+                u.start_kc,
+                u.end_kc
+            )),
+            _ => {
+                let kcs: Vec<String> = kc_updates
+                    .iter()
+                    .map(|u| format!("**{}** {} -> {}", u.name, u.start_kc, u.end_kc))
+                    .collect();
+                Some(format!(
+                    "{} increased kc{}: {}",
                     player.player_alias(),
-                    join_messages(&low_prio_parts),
-                    player.player_explanation
-                )
-            }
-            (false, true) => {
-                format!(
-                    "{} just got {}{}!",
-                    player.player_alias(),
-                    join_messages(&high_prio_parts),
-                    player.player_explanation
-                )
-            }
-            (false, false) => {
-                format!(
-                    "{} just got {}{}! He also got {}.",
-                    player.player_alias(),
-                    join_messages(&high_prio_parts),
                     player.player_explanation,
-                    join_messages(&low_prio_parts),
-                )
+                    join_messages(&kcs)
+                ))
             }
         }
+    }
+
+    fn collection_log_message(&self, player: &PlayerConfig) -> Option<String> {
+        let update = self
+            .kc_updates
+            .iter()
+            .find(|u| u.name == COLLECTIONS_LOGGED && u.is_shown(player))?;
+        Some(match update.kc_gained() {
+            1 => format!(
+                "{} got a new collection log slot{}! What could it be?",
+                player.player_alias(),
+                player.player_explanation
+            ),
+            slots => format!(
+                "{} got {} new collection log slots{}! What could they be?",
+                player.player_alias(),
+                slots,
+                player.player_explanation
+            ),
+        })
     }
 }
 
@@ -175,7 +206,12 @@ fn join_messages(messages: &[String]) -> String {
         output.push_str(message);
         if i == messages.len() - 1 {
         } else if i == messages.len() - 2 {
-            output.push_str(", and ");
+            // Only use the Oxford comma for 3 or more items
+            output.push_str(if messages.len() == 2 {
+                " and "
+            } else {
+                ", and "
+            });
         } else {
             output.push_str(", ");
         }
@@ -313,8 +349,37 @@ pub fn get_update_message(
     }
 }
 
+#[cfg(test)]
+fn test_metric_updates() -> MetricUpdates {
+    let exp_update = |name: &str, end_exp, start_level, end_level| ExpUpdate {
+        name: name.to_string(),
+        start_exp: 0,
+        end_exp,
+        start_level,
+        end_level,
+    };
+    let kc_update = |name: &str, start_kc, end_kc| KcUpdate {
+        name: name.to_string(),
+        start_kc,
+        end_kc,
+    };
+    MetricUpdates {
+        exp_updates: vec![
+            exp_update("Slayer", 36_390, 77, 78),
+            exp_update("Strength", 41_144, 99, 99),
+            exp_update("Hitpoints", 13_693, 99, 99),
+            exp_update("Farming", 1093, 99, 99),
+        ],
+        kc_updates: vec![
+            kc_update("Collections Logged", 388, 389),
+            kc_update("Clue Scrolls (beginner)", 100, 102),
+            kc_update("Obor", 10, 11),
+        ],
+    }
+}
+
 #[test]
-fn test_update_message() {
+fn test_update_messages() {
     let player = PlayerConfig {
         player_name: "OneChunkUp".to_string(),
         player_alias: Some("Limpwurt".to_string()),
@@ -325,45 +390,39 @@ fn test_update_message() {
         metrics_whitelist: vec![],
         metrics_blacklist: vec![],
     };
-    let metric_updates = MetricUpdates {
-        exp_updates: vec![
-            ExpUpdate {
-                name: "Strength".to_string(),
-                start_exp: 0,
-                end_exp: 41_144,
-                start_level: 99,
-                end_level: 99,
-            },
-            ExpUpdate {
-                name: "Hitpoints".to_string(),
-                start_exp: 0,
-                end_exp: 13_693,
-                start_level: 99,
-                end_level: 99,
-            },
-            ExpUpdate {
-                name: "Farming".to_string(),
-                start_exp: 0,
-                end_exp: 1093,
-                start_level: 99,
-                end_level: 99,
-            },
-        ],
-        kc_updates: vec![
-            KcUpdate {
-                name: "Collections Logged".to_string(),
-                start_kc: 388,
-                end_kc: 389,
-            },
-            KcUpdate {
-                name: "Clue Scrolls (beginner)".to_string(),
-                start_kc: 100,
-                end_kc: 102,
-            },
-        ],
+    assert_eq!(
+        test_metric_updates().update_messages(&player),
+        [
+            "Limpwurt just got level 78 Slayer!",
+            "Limpwurt got 41144 Strength exp, 36390 Slayer exp, 13693 Hitpoints exp, and 1093 Farming exp!",
+            "Limpwurt increased kc: **Clue Scrolls (beginner)** 100 -> 102 and **Obor** 10 -> 11",
+            "Limpwurt got a new collection log slot! What could it be?",
+        ]
+    );
+}
+
+#[test]
+fn test_update_messages_only_show_enabled_metrics() {
+    let mut player = PlayerConfig {
+        player_name: "OneChunkUp".to_string(),
+        player_alias: Some("Limpwurt".to_string()),
+        player_explanation: " on his chunk account".to_string(),
+        show_exp_gain: true,
+        show_levelups: false,
+        show_kc_increases: false,
+        metrics_whitelist: vec!["Slayer".to_string(), "Obor".to_string()],
+        metrics_blacklist: vec!["Hitpoints".to_string()],
     };
     assert_eq!(
-        metric_updates.get_full_update_message(&player),
-        "Limpwurt just got a new collection log slot, and 2 **Clue Scrolls (beginner)** kc! He also got 41144 Strength exp, 13693 Hitpoints exp, and 1093 Farming exp."
+        test_metric_updates().update_messages(&player),
+        [
+            "Limpwurt just got level 78 Slayer on his chunk account!",
+            "Limpwurt got 41144 Strength exp, 36390 Slayer exp, and 1093 Farming exp on his chunk account!",
+            "Limpwurt increased **Obor** kc on his chunk account: 10 -> 11",
+        ]
     );
+
+    player.show_exp_gain = false;
+    player.metrics_whitelist.clear();
+    assert!(test_metric_updates().update_messages(&player).is_empty());
 }
