@@ -38,7 +38,7 @@ impl EventHandler for Handler {
 
 impl Handler {
     async fn handle_message(&self, ctx: Context, msg: Message) -> eyre::Result<()> {
-        if msg.channel_id == 871879186732707853
+        if (msg.channel_id == 871879186732707853 || msg.channel_id == 1519033708424724600)
             && msg
                 .content
                 .split_whitespace()
