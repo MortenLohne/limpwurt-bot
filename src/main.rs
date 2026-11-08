@@ -116,39 +116,19 @@ async fn poll_once(
         let messages = updates.update_messages(player_config);
         if !messages.is_empty() {
             println!("Triggered post for {}", player.name);
-            for message in &messages {
-                println!("{}", message);
-            }
         } else if !updates.is_empty() {
             println!("Got update for {}, but no post triggered", player.name);
+        }
+        for message in &messages {
+            println!("{}", message);
+            if let Err(e) = channel_id.say(&http, message).await {
+                eprintln!("Discord send error: {:#}", e);
+            }
         }
 
         if prev_metrics.is_empty() {
             println!("Got first metrics for {}", player.name);
             continue;
-        }
-
-        for metric in &metrics {
-            let prev_metric = prev_metrics.get(&metric.name).cloned();
-
-            if !(prev_metric
-                .as_ref()
-                .is_some_and(|prev_metric| metric.score > prev_metric.score)
-                || metric.exp.is_some_and(|exp| {
-                    prev_metric.as_ref().is_some_and(|prev_metric| {
-                        prev_metric.exp.is_some_and(|prev_exp| exp > prev_exp)
-                    })
-                }))
-            {
-                continue;
-            }
-
-            if let Some(message) =
-                update_post::get_update_message(metric, &prev_metric, player_config)?
-                && let Err(e) = channel_id.say(&http, &message).await
-            {
-                eprintln!("Discord send error: {:#}", e);
-            }
         }
 
         // Check for special Limpwurt update message

@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use eyre::ContextCompat;
-
 use crate::{config::PlayerConfig, hiscore_lookup::Metric};
 
 // The metrics that were updated since the last lookup
@@ -256,97 +254,6 @@ pub fn metric_updates(metrics: &[Metric], prev_metrics: &HashMap<String, Metric>
     metric_update.exp_updates.sort();
 
     metric_update
-}
-
-pub fn get_update_message(
-    metric: &Metric,
-    prev_metric: &Option<Metric>,
-    player: &PlayerConfig,
-) -> eyre::Result<Option<String>> {
-    println!(
-        "Metric updated for {}: {:?} -> {}",
-        player.player_alias(),
-        prev_metric.as_ref().map(ToString::to_string),
-        metric
-    );
-    if player.metrics_blacklist.contains(&metric.name) {
-        return Ok(None);
-    }
-    if let Some(exp) = metric.exp {
-        // This is an exp metric
-        // Assume the player previously had 0 exp, if we have no previous metric
-        let exp_gained = exp - prev_metric.as_ref().and_then(|m| m.exp).unwrap_or(0);
-        if (player.show_levelups || player.metrics_whitelist.contains(&metric.name))
-            && prev_metric
-                .as_ref()
-                .is_none_or(|prev_metric| metric.score > prev_metric.score)
-        {
-            Ok(Some(format!(
-                "{} just got level {} {}{}!",
-                player.player_alias(),
-                metric.score,
-                metric.name,
-                player.player_explanation
-            )))
-        // Ignore whitelist for exp gain without levelups
-        } else if player.show_exp_gain && exp_gained > 0 {
-            Ok(Some(format!(
-                "{} got {} {} exp{}!",
-                player.player_alias(),
-                exp_gained,
-                metric.name,
-                player.player_explanation
-            )))
-        } else {
-            Ok(None)
-        }
-    } else {
-        if player.show_kc_increases || player.metrics_whitelist.contains(&metric.name) {
-            if metric.name == "Collections Logged" {
-                let Some(prev_metric) = prev_metric else {
-                    return Ok(None);
-                };
-                // This is a kc metric
-                let delta = metric
-                    .score
-                    .checked_sub(prev_metric.score)
-                    .with_context(|| {
-                        format!(
-                            "{} kc decreased {} -> {}",
-                            metric.name, prev_metric.score, metric.score
-                        )
-                    })?;
-                if delta == 1 {
-                    Ok(Some(format!(
-                        "{} got a new collection log slot{}! What could it be?",
-                        player.player_alias(),
-                        player.player_explanation
-                    )))
-                } else {
-                    Ok(Some(format!(
-                        "{} got {} new collection log slots{}! What could they be?",
-                        player.player_alias(),
-                        delta,
-                        player.player_explanation
-                    )))
-                }
-            } else {
-                Ok(Some(format!(
-                    "{} increased **{}** kc{}: {} -> {}",
-                    player.player_alias(),
-                    metric.name,
-                    player.player_explanation,
-                    prev_metric
-                        .as_ref()
-                        .map(|m| m.score.to_string())
-                        .unwrap_or("Unranked".to_string()),
-                    metric.score
-                )))
-            }
-        } else {
-            Ok(None)
-        }
-    }
 }
 
 #[cfg(test)]

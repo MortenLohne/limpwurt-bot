@@ -1,4 +1,4 @@
-//! Replays the hiscores database through the new update message system (`metric_updates` and
+//! Replays the hiscores database through the update message system (`metric_updates` and
 //! `MetricUpdates::update_messages`), and prints the latest messages it would have posted in
 //! Discord, using the current code and `config.json`.
 //!
