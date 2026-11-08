@@ -224,28 +224,36 @@ pub fn metric_updates(metrics: &[Metric], prev_metrics: &HashMap<String, Metric>
     };
 
     for metric in metrics {
-        let Some(prev_metric) = prev_metrics.get(&metric.name) else {
-            continue;
+        // The hiscores only list the metrics a player is ranked in, so a metric missing from a
+        // known player's previous snapshot is a new skill or boss, which starts from level 1 with
+        // 0 exp, or from 0 kc. For a new player everything is missing, and nothing is reported.
+        let (prev_score, prev_exp) = match prev_metrics.get(&metric.name) {
+            Some(prev_metric) => (prev_metric.score, prev_metric.exp),
+            None if !prev_metrics.is_empty() => match metric.exp {
+                Some(_) => (1, Some(0)),
+                None => (0, None),
+            },
+            None => continue,
         };
-        if !(metric.score > prev_metric.score
+        if !(metric.score > prev_score
             || metric
                 .exp
-                .is_some_and(|exp| prev_metric.exp.is_some_and(|prev_exp| exp > prev_exp)))
+                .is_some_and(|exp| prev_exp.is_some_and(|prev_exp| exp > prev_exp)))
         {
             continue;
         }
-        if let Some((exp, prev_exp)) = metric.exp.zip(prev_metric.exp) {
+        if let Some((exp, prev_exp)) = metric.exp.zip(prev_exp) {
             metric_update.exp_updates.push(ExpUpdate {
                 name: metric.name.clone(),
                 start_exp: prev_exp,
                 end_exp: exp,
-                start_level: prev_metric.score,
+                start_level: prev_score,
                 end_level: metric.score,
             });
         } else {
             metric_update.kc_updates.push(KcUpdate {
                 name: metric.name.clone(),
-                start_kc: prev_metric.score,
+                start_kc: prev_score,
                 end_kc: metric.score,
             });
         }
@@ -332,4 +340,46 @@ fn test_update_messages_only_show_enabled_metrics() {
     player.show_exp_gain = false;
     player.metrics_whitelist.clear();
     assert!(test_metric_updates().update_messages(&player).is_empty());
+}
+
+#[test]
+fn test_metric_updates_new_metrics() {
+    let metric = |name: &str, score, exp| Metric {
+        name: name.to_string(),
+        rank: None,
+        score,
+        exp,
+    };
+    let prev_metrics: HashMap<String, Metric> = [metric("Slayer", 77, Some(1_500_000))]
+        .into_iter()
+        .map(|m| (m.name.clone(), m))
+        .collect();
+    let metrics = [
+        metric("Slayer", 77, Some(1_500_000)),
+        metric("Herblore", 19, Some(4100)),
+        metric("Artio", 1, None),
+    ];
+    let player = PlayerConfig {
+        player_name: "OneChunkUp".to_string(),
+        player_alias: Some("Limpwurt".to_string()),
+        player_explanation: "".to_string(),
+        show_exp_gain: true,
+        show_levelups: true,
+        show_kc_increases: true,
+        metrics_whitelist: vec![],
+        metrics_blacklist: vec![],
+    };
+
+    // A known player's first level in a skill or kc in a boss is reported
+    assert_eq!(
+        metric_updates(&metrics, &prev_metrics).update_messages(&player),
+        [
+            "Limpwurt just got level 19 Herblore!",
+            "Limpwurt got 4100 Herblore exp!",
+            "Limpwurt increased **Artio** kc: 0 -> 1",
+        ]
+    );
+
+    // But nothing is reported for a new player
+    assert!(metric_updates(&metrics, &HashMap::new()).is_empty());
 }
