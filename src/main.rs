@@ -162,23 +162,24 @@ async fn poll_once(
                             .collect(),
                     );
 
-                    let crafting_exp_gained_now = updates
+                    // Hitpoints exp comes from the hellhound grind
+                    let hp_exp_gained_now = updates
                         .exp_updates
                         .iter()
-                        .find(|metric| metric.name == "Crafting")
+                        .find(|metric| metric.name == "Hitpoints")
                         .map(|metric| metric.end_exp - metric.start_exp)
                         .unwrap_or_default();
 
-                    let crafting_exp_since_update = updates_since_post
+                    let hp_exp_since_update = updates_since_post
                         .exp_updates
                         .iter()
-                        .find(|metric| metric.name == "Crafting")
+                        .find(|metric| metric.name == "Hitpoints")
                         .map(|metric| metric.end_exp - metric.start_exp)
                         .unwrap_or_default();
 
-                    (crafting_exp_gained_now > 0
+                    (hp_exp_gained_now > 0
                         && current_time - last_update_time > chrono::Duration::hours(8))
-                        || crafting_exp_since_update > 100_000
+                        || hp_exp_since_update > 100_000
                 }
             };
 
@@ -186,9 +187,6 @@ async fn poll_once(
                 continue;
             }
             let prediction = chunkroll_predictor::predict_chunkroll_date(&metrics)?;
-            if prediction.crafting_exp_left == 0 {
-                continue;
-            }
             channel_id.say(&http, prediction.update_message()).await?;
 
             if let Some(ref sheep_token) = sheep_token
